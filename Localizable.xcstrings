@@ -77,6 +77,12 @@
     "Wait until speaking is complete before showing the final result, reducing intermediate logs and resource consumption" : {
 
     },
+    "Performance Optimization" : {
+
+    },
+    "Enable dynamic sending strategy and optimized timing for faster transcription. May reduce accuracy slightly for very long audio." : {
+
+    },
     "Allow capturing screenshots for AI image analysis and enhanced context understanding" : {
 
     },

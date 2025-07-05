@@ -63,6 +63,7 @@ struct HexSettings: Codable, Equatable {
     var aliyunAPIKeyLastTested: Date? = nil
     var aliyunAPIKeyIsValid: Bool = false
     var aliyunBatchMode: Bool = true // 批量转录模式：等说完后统一展示结果，减少资源消耗
+    var aliyunPerformanceMode: Bool = true // 性能优化模式：动态调整发送策略提高转录速度
 
 	// Define coding keys to match struct properties
 	enum CodingKeys: String, CodingKey {
@@ -104,6 +105,7 @@ struct HexSettings: Codable, Equatable {
         case aliyunAPIKeyLastTested
         case aliyunAPIKeyIsValid
         case aliyunBatchMode
+        case aliyunPerformanceMode
 	}
 
 	init(
@@ -144,7 +146,8 @@ struct HexSettings: Codable, Equatable {
         aliyunAPIKey: String = "",
         aliyunAPIKeyLastTested: Date? = nil,
         aliyunAPIKeyIsValid: Bool = false,
-        aliyunBatchMode: Bool = true
+        aliyunBatchMode: Bool = true,
+        aliyunPerformanceMode: Bool = true
 	) {
 		self.soundEffectsEnabled = soundEffectsEnabled
 		self.hotkey = hotkey
@@ -184,6 +187,7 @@ struct HexSettings: Codable, Equatable {
         self.aliyunAPIKeyLastTested = aliyunAPIKeyLastTested
         self.aliyunAPIKeyIsValid = aliyunAPIKeyIsValid
         self.aliyunBatchMode = aliyunBatchMode
+        self.aliyunPerformanceMode = aliyunPerformanceMode
 	}
 
 	// Custom decoder that handles missing fields
@@ -249,6 +253,7 @@ struct HexSettings: Codable, Equatable {
         aliyunAPIKeyLastTested = try container.decodeIfPresent(Date.self, forKey: .aliyunAPIKeyLastTested)
         aliyunAPIKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .aliyunAPIKeyIsValid) ?? false
         aliyunBatchMode = try container.decodeIfPresent(Bool.self, forKey: .aliyunBatchMode) ?? true
+        aliyunPerformanceMode = try container.decodeIfPresent(Bool.self, forKey: .aliyunPerformanceMode) ?? true
 	}
 }
 

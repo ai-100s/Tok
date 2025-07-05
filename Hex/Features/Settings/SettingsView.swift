@@ -595,6 +595,18 @@ struct AliyunAPIConfigurationView: View {
             } icon: {
                 Image(systemName: "clock.badge.checkmark")
             }
+            
+            // Performance Mode Toggle
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Performance Optimization", isOn: $store.hexSettings.aliyunPerformanceMode)
+                    Text("Enable dynamic sending strategy and optimized timing for faster transcription. May reduce accuracy slightly for very long audio.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } icon: {
+                Image(systemName: "bolt.circle")
+            }
         }
         .padding(.vertical, 4)
     }

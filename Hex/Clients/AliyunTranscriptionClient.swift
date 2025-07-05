@@ -80,8 +80,8 @@ actor AliyunTranscriptionEngine {
         }
         TokLogger.log("WebSocket connection established successfully")
 
-        // 等待一小段时间确保连接稳定
-        try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+        // 优化：减少初始等待时间，加快启动速度
+        try await Task.sleep(nanoseconds: 200_000_000) // 200ms即可保证连接稳定
         
         progress.completedUnitCount = 20
         progressCallback(progress)
@@ -234,9 +234,9 @@ actor AliyunTranscriptionEngine {
             }
         }
 
-        // 等待任务开始
+        // 优化：更频繁的检查任务状态，减少等待时间
         while !taskStarted && !taskFinished {
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: 25_000_000) // 25ms更频繁检查
         }
 
         if taskFinished {
@@ -253,9 +253,9 @@ actor AliyunTranscriptionEngine {
         try await sendFinishTaskInstruction()
         TokLogger.log("Finish task instruction sent")
 
-        // 等待任务完成
+        // 优化：更频繁的检查完成状态
         while !taskFinished {
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: 25_000_000) // 25ms更频繁检查
         }
 
         messageHandlingTask.cancel()
@@ -401,35 +401,68 @@ actor AliyunTranscriptionEngine {
             TokLogger.log("[BATCH] Starting audio transmission: \(audioData.count) bytes, duration: \(String(format: "%.3f", audioDuration))s")
         }
 
-        // 按照官方建议：每次发送100ms的音频，并间隔100ms
-        // 100ms 的音频数据 = 16000 采样率 * 0.1 秒 * 2 字节 = 3200 字节
-        let chunkSize = 3200
+        // 性能优化：根据音频长度和设置动态调整发送策略
+        let chunkSize = 3200 // 100ms的音频数据
         let totalChunks = (pcmData.count + chunkSize - 1) / chunkSize
         let sendStartTime = Date()
+        
+        // 检查是否启用性能优化
+        let performanceMode = settings?.aliyunPerformanceMode ?? true
+        
+        let sendInterval: UInt64
+        let batchSize: Int
+        
+        if performanceMode {
+            // 性能优化模式：动态调整
+            if audioDuration < 3.0 {
+                sendInterval = 40_000_000  // 40ms 更快
+                batchSize = 3  // 三块批量发送
+            } else if audioDuration < 8.0 {
+                sendInterval = 60_000_000  // 60ms 平衡
+                batchSize = 2  // 两块批量发送
+            } else {
+                sendInterval = 80_000_000  // 80ms 稳定
+                batchSize = 1  // 单块发送
+            }
+        } else {
+            // 标准模式：按官方建议
+            sendInterval = 100_000_000  // 100ms
+            batchSize = 1
+        }
+        
+        var i = 0
+        while i < totalChunks {
+            let batchEnd = min(i + batchSize, totalChunks)
+            
+            // 批量发送音频块
+            for j in i..<batchEnd {
+                let startIndex = j * chunkSize
+                let endIndex = min(startIndex + chunkSize, pcmData.count)
+                let chunk = pcmData[startIndex..<endIndex]
 
-        for i in 0..<totalChunks {
-            let startIndex = i * chunkSize
-            let endIndex = min(startIndex + chunkSize, pcmData.count)
-            let chunk = pcmData[startIndex..<endIndex]
-
-            // 直接发送二进制音频数据
-            let message = URLSessionWebSocketTask.Message.data(Data(chunk))
-            try await webSocket?.send(message)
+                let message = URLSessionWebSocketTask.Message.data(Data(chunk))
+                try await webSocket?.send(message)
+            }
 
             // 更新进度
             let progress = Progress(totalUnitCount: 100)
             progress.completedUnitCount = 40 + Int64((Double(i) / Double(totalChunks)) * 30)
             progressCallback(progress)
 
-            // 按照官方建议：间隔100ms
-            try await Task.sleep(nanoseconds: 100_000_000)
+            // 动态间隔等待
+            if i + batchSize < totalChunks {
+                try await Task.sleep(nanoseconds: sendInterval)
+            }
+            
+            i += batchSize
         }
         
         let sendDuration = Date().timeIntervalSince(sendStartTime)
+        let mode = performanceMode ? "PERF" : "STD"
         if let settings = settings, !settings.aliyunBatchMode {
-            TokLogger.log("[REALTIME] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks")
+            TokLogger.log("[REALTIME-\(mode)] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks (batch: \(batchSize))")
         } else {
-            TokLogger.log("[BATCH] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks")
+            TokLogger.log("[BATCH-\(mode)] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks (batch: \(batchSize))")
         }
     }
 
