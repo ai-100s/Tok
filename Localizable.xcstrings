@@ -31,6 +31,9 @@
     "• Start recording from any app" : {
 
     },
+    "$%.3f/min" : {
+
+    },
     "About" : {
       "comment" : "Settings -> About Section headline",
       "localizations" : {
@@ -69,6 +72,9 @@
 
     },
     "Analysis Instructions" : {
+
+    },
+    "API Key Required" : {
 
     },
     "Are you sure you want to delete all transcripts? This action cannot be undone." : {
@@ -184,6 +190,9 @@
           }
         }
       }
+    },
+    "Configure" : {
+
     },
     "Connection Status" : {
 
@@ -373,7 +382,16 @@
     "Enter context or keywords that help Whisper recognize your speech more accurately. For example: technical terms, names, or domain-specific vocabulary you frequently use." : {
 
     },
+    "Enter your OpenAI API key" : {
+
+    },
     "Error: %@" : {
+
+    },
+    "Estimated cost: $%.3f/minute" : {
+
+    },
+    "Free" : {
 
     },
     "General" : {
@@ -386,6 +404,9 @@
           }
         }
       }
+    },
+    "Get your API key from platform.openai.com" : {
+
     },
     "Grant Microphone Access" : {
 
@@ -448,7 +469,16 @@
     "Instructions" : {
 
     },
+    "Invalid" : {
+
+    },
     "Language Model" : {
+
+    },
+    "Local" : {
+
+    },
+    "Local Model Download" : {
 
     },
     "Logs" : {
@@ -550,6 +580,12 @@
         }
       }
     },
+    "OpenAI API Key" : {
+
+    },
+    "OpenAI Configuration" : {
+
+    },
     "Optional context that helps Whisper better understand what you're likely to say. This is applied directly to voice recognition, not AI enhancement." : {
 
     },
@@ -627,6 +663,9 @@
 
     },
     "Refresh available input devices" : {
+
+    },
+    "Remote" : {
 
     },
     "Request Permission" : {
@@ -801,6 +840,9 @@
     "The recording was long but the resulting transcription appears to be empty or incomplete. You can retry the transcription from the History tab in Settings." : {
 
     },
+    "The selected model requires an OpenAI API key. Please configure your API key or choose a local model." : {
+
+    },
     "These instructions tell the AI how to analyze captured screenshots for better transcription context." : {
 
     },
@@ -829,6 +871,7 @@
     },
     "Transcription Model" : {
       "comment" : "Label for Transcription Model Section",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -837,6 +880,9 @@
           }
         }
       }
+    },
+    "Transcription Provider" : {
+
     },
     "Try speaking with your hotkey pressed. Your transcription will appear below." : {
 
@@ -870,6 +916,9 @@
 
     },
     "Use This Hotkey" : {
+
+    },
+    "Valid" : {
 
     },
     "Version" : {

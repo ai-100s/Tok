@@ -486,6 +486,13 @@ actor RecordingClientLive {
     let warmupStart = Date()
     print("🎙️ [TIMING] Audio input warmup started at: \(warmupStart.timeIntervalSince1970)")
 
+    // Check microphone permission before attempting to warm up
+    let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    guard authStatus == .authorized else {
+      print("🎙️ [WARNING] Audio input warmup skipped - microphone permission not granted (status: \(authStatus))")
+      return
+    }
+
     do {
       // Create a temporary recorder to warm up the audio input device
       // Note: On macOS, AVAudioSession is not available, so we skip session setup
@@ -528,7 +535,14 @@ actor RecordingClientLive {
       print("🎙️ [WARNING] Recording start ignored - recording already in progress")
       return
     }
-    
+
+    // Check microphone permission before attempting to start recording
+    let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    guard authStatus == .authorized else {
+      print("🎙️ [ERROR] Recording start failed - microphone permission not granted (status: \(authStatus))")
+      return
+    }
+
     let startTime = Date()
     print("🎙️ [TIMING] Recording start requested at: \(startTime.timeIntervalSince1970)")
 

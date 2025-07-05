@@ -66,6 +66,10 @@ struct SettingsFeature {
     
     // AI Enhancement
     case aiEnhancement(AIEnhancementFeature.Action)
+    
+    // OpenAI API Key Testing
+    case testOpenAIAPIKey
+    case openAIAPIKeyTestResult(Bool)
 
     // Navigation
     case openHistory
@@ -97,6 +101,9 @@ struct SettingsFeature {
         }
 
       case .task:
+        print("🚀 [SETTINGS] SettingsFeature.task started")
+        print("🔐 [PERMISSION] Current permission states - mic: \(state.microphonePermission), accessibility: \(state.accessibilityPermission)")
+        
         if let url = Bundle.main.url(forResource: "languages", withExtension: "json"),
           let data = try? Data(contentsOf: url),
           let languages = try? JSONDecoder().decode([Language].self, from: data)
@@ -107,8 +114,13 @@ struct SettingsFeature {
         }
 
         // Listen for key events and load microphones (existing + new)
+        let shouldCheckPermissions = state.microphonePermission == .notDetermined || state.accessibilityPermission == .notDetermined
+        print("🔐 [PERMISSION] shouldCheckPermissions: \(shouldCheckPermissions)")
         return .run { send in
-          await send(.checkPermissions)
+          // Only check permissions if they haven't been determined yet
+          if shouldCheckPermissions {
+            await send(.checkPermissions)
+          }
           await send(.modelDownload(.fetchModels))
           await send(.loadAvailableInputDevices)
           
@@ -225,14 +237,17 @@ struct SettingsFeature {
 
       // Permissions
       case .checkPermissions:
+        print("🔐 [PERMISSION] checkPermissions called")
         // Check microphone
         return .merge(
           .run { send in
             let currentStatus = await checkMicrophonePermission()
+            print("🔐 [PERMISSION] Initial microphone check: \(currentStatus)")
             await send(.setMicrophonePermission(currentStatus))
           },
           .run { send in
             let currentStatus = checkAccessibilityPermission()
+            print("🔐 [PERMISSION] Initial accessibility check: \(currentStatus)")
             await send(.setAccessibilityPermission(currentStatus))
           }
         )
@@ -242,12 +257,19 @@ struct SettingsFeature {
         return .none
 
       case let .setAccessibilityPermission(status):
+        print("🔐 [PERMISSION] setAccessibilityPermission: \(state.accessibilityPermission) -> \(status)")
         state.accessibilityPermission = status
         if status == .granted {
           return .run { _ in
+            print("🔐 [PERMISSION] Starting keyEventMonitor after 1s delay...")
+            // Add a delay to allow system permission state to fully propagate
+            // before attempting to create CGEvent tap
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+            print("🔐 [PERMISSION] Calling keyEventMonitor.startMonitoring()")
             await keyEventMonitor.startMonitoring()
           }
         } else {
+          print("🔐 [PERMISSION] Permission denied, not starting keyEventMonitor")
           return .none
         }
 
@@ -260,31 +282,109 @@ struct SettingsFeature {
 
       case .requestAccessibilityPermission:
         return .run { send in
+          print("🔐 [PERMISSION] requestAccessibilityPermission started")
+          
           // First, prompt the user with the system dialog
           let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
           _ = AXIsProcessTrustedWithOptions(options)
+          print("🔐 [PERMISSION] System permission dialog triggered")
 
           // Open System Settings
-          NSWorkspace.shared.open(
-            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-          )
+          if #available(macOS 13.0, *) {
+            // For macOS 13+ (System Settings)
+            NSWorkspace.shared.open(
+              URL(string: "x-apple.systempreferences:com.apple.SystemPreferences.Extensions?Privacy_Accessibility")!
+            )
+            print("🔐 [PERMISSION] Opened System Settings (macOS 13+)")
+          } else {
+            // For macOS 12 and earlier (System Preferences)
+            NSWorkspace.shared.open(
+              URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+            )
+            print("🔐 [PERMISSION] Opened System Preferences (macOS 12-)")
+          }
 
-          // Poll for changes every second until granted
+          // Poll for changes with state stability checking
+          var grantedCount = 0
+          var deniedCount = 0
+          let requiredConsistentChecks = 3
+          var totalChecks = 0
+          
+          print("🔐 [PERMISSION] Starting polling loop...")
+          
           for await _ in self.clock.timer(interval: .seconds(0.5)) {
-            let newStatus = checkAccessibilityPermission()
-            await send(.setAccessibilityPermission(newStatus))
-
-            // If permission is granted, we can stop polling
-            if newStatus == .granted {
+            totalChecks += 1
+            let currentStatus = checkAccessibilityPermission()
+            
+            print("🔐 [PERMISSION] Poll #\(totalChecks): \(currentStatus) (granted: \(grantedCount), denied: \(deniedCount))")
+            
+            // Count consecutive status results to ensure stability
+            if currentStatus == .granted {
+              grantedCount += 1
+              deniedCount = 0
+            } else {
+              deniedCount += 1
+              grantedCount = 0
+            }
+            
+            // Only update state if we have consistent results
+            if grantedCount >= requiredConsistentChecks {
+              // Permission is stable and granted
+              print("🔐 [PERMISSION] Permission STABLE and GRANTED after \(grantedCount) consecutive checks")
+              await send(.setAccessibilityPermission(.granted))
+              break
+            } else if deniedCount >= requiredConsistentChecks {
+              // Permission is stable and denied, continue polling
+              print("🔐 [PERMISSION] Permission STABLE and DENIED after \(deniedCount) consecutive checks")
+              await send(.setAccessibilityPermission(.denied))
+            }
+            
+            // Safety timeout after 2 minutes
+            if deniedCount + grantedCount > 240 { // 240 * 0.5s = 2 minutes
+              print("🔐 [PERMISSION] Polling timeout reached after 2 minutes")
               break
             }
           }
+          
+          print("🔐 [PERMISSION] Polling loop ended")
         }
 
       case .accessibilityStatusDidChange:
-        let newStatus = checkAccessibilityPermission()
-        state.accessibilityPermission = newStatus
-        return .none
+        // Add state validation to ensure the permission change is stable
+        return .run { send in
+          print("🔐 [PERMISSION] accessibilityStatusDidChange triggered")
+          
+          // Check permission status multiple times with delays to ensure stability
+          var stableStatus: PermissionStatus?
+          let checkCount = 3
+          
+          for i in 0..<checkCount {
+            let currentStatus = checkAccessibilityPermission()
+            print("🔐 [PERMISSION] accessibilityStatusDidChange check \(i+1)/\(checkCount): \(currentStatus)")
+            
+            if i == 0 {
+              stableStatus = currentStatus
+            } else if stableStatus != currentStatus {
+              // Status changed between checks, reset and start over
+              print("🔐 [PERMISSION] Status changed between checks, resetting")
+              stableStatus = nil
+              break
+            }
+            
+            // Wait between checks to allow system state to stabilize
+            if i < checkCount - 1 {
+              try? await Task.sleep(nanoseconds: 150_000_000) // 150ms delay
+            }
+          }
+          
+          // Only update if we have a stable status
+          if let finalStatus = stableStatus {
+            print("🔐 [PERMISSION] accessibilityStatusDidChange sending stable status: \(finalStatus)")
+            await send(.setAccessibilityPermission(finalStatus))
+          } else {
+            print("🔐 [PERMISSION] accessibilityStatusDidChange - no stable status found")
+          }
+        }
 
       // Model Management
       case let .modelDownload(.selectModel(newModel)):
@@ -311,6 +411,31 @@ struct SettingsFeature {
         
       case let .availableInputDevicesLoaded(devices):
         state.availableInputDevices = devices
+        return .none
+
+      // OpenAI API Key Testing
+      case .testOpenAIAPIKey:
+        guard !state.hexSettings.openaiAPIKey.isEmpty else {
+          return .none
+        }
+        
+        return .run { [apiKey = state.hexSettings.openaiAPIKey] send in
+          let isValid = await transcription.testOpenAIConnection(apiKey)
+          await send(.openAIAPIKeyTestResult(isValid))
+        }
+        
+      case let .openAIAPIKeyTestResult(isValid):
+        state.$hexSettings.withLock {
+          $0.openaiAPIKeyIsValid = isValid
+          $0.openaiAPIKeyLastTested = Date()
+        }
+        
+        if isValid {
+          TokLogger.log("OpenAI API key validation successful")
+        } else {
+          TokLogger.log("OpenAI API key validation failed", level: .warn)
+        }
+        
         return .none
 
       // Navigation
@@ -351,8 +476,13 @@ private func requestMicrophonePermissionImpl() async -> Bool {
 private func checkAccessibilityPermission() -> PermissionStatus {
   let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
   let trusted = AXIsProcessTrustedWithOptions(options)
-  return trusted ? .granted : .denied
+  let status: PermissionStatus = trusted ? .granted : .denied
+  
+  print("🔐 [PERMISSION] checkAccessibilityPermission() -> \(status) (trusted: \(trusted))")
+  
+  return status
 }
+
 
 // MARK: - Permission Status
 // PermissionStatus is now defined in Models/PermissionStatus.swift

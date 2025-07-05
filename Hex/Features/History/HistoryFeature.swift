@@ -207,7 +207,7 @@ struct HistoryFeature {
 					return .none
 				}
 
-				let model = state.hexSettings.selectedModel
+				let model = state.hexSettings.selectedTranscriptionModel.rawValue
 				let language = state.hexSettings.outputLanguage
 				let settings = state.hexSettings
 				let transcriptionHistory = state.$transcriptionHistory

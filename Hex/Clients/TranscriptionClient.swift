@@ -65,6 +65,9 @@ struct TranscriptionClient {
 
   /// Cleans up raw Whisper tokens from text
   var cleanWhisperTokens: @Sendable (String) -> String = { $0 }
+  
+  /// Tests OpenAI API connection with the provided API key
+  var testOpenAIConnection: @Sendable (String) async -> Bool = { _ in false }
 }
 
 extension TranscriptionClient: DependencyKey {
@@ -81,7 +84,8 @@ extension TranscriptionClient: DependencyKey {
       startStreamTranscription: { try await live.startStreamTranscription(model: $0, options: $1, settings: $2, updateCallback: $3) },
       stopStreamTranscription: { await live.stopStreamTranscription() },
       getTokenizer: { await live.getTokenizer() },
-      cleanWhisperTokens: { live.cleanWhisperTokens(from: $0) }
+      cleanWhisperTokens: { live.cleanWhisperTokens(from: $0) },
+      testOpenAIConnection: { await live.testOpenAIConnection(apiKey: $0) }
     )
   }
 }
@@ -323,6 +327,73 @@ actor TranscriptionClientLive {
     model: String,
     options: DecodingOptions,
     settings: HexSettings? = nil,
+    progressCallback: @escaping (Progress) -> Void
+  ) async throws -> String {
+    // Try to parse as TranscriptionModelType first
+    if let modelType = TranscriptionModelType(rawValue: model) {
+      return try await transcribeWithModelType(
+        url: url,
+        modelType: modelType,
+        options: options,
+        settings: settings,
+        progressCallback: progressCallback
+      )
+    } else {
+      // Fallback to original WhisperKit implementation for compatibility
+      return try await transcribeWithWhisperKit(
+        url: url,
+        model: model,
+        options: options,
+        settings: settings,
+        progressCallback: progressCallback
+      )
+    }
+  }
+  
+  /// Transcribes using the new model type system
+  private func transcribeWithModelType(
+    url: URL,
+    modelType: TranscriptionModelType,
+    options: DecodingOptions,
+    settings: HexSettings?,
+    progressCallback: @escaping (Progress) -> Void
+  ) async throws -> String {
+    switch modelType.provider {
+    case .whisperKit:
+      return try await transcribeWithWhisperKit(
+        url: url,
+        model: modelType.rawValue,
+        options: options,
+        settings: settings,
+        progressCallback: progressCallback
+      )
+      
+    case .openai:
+      guard let settings = settings, !settings.openaiAPIKey.isEmpty else {
+        throw TranscriptionError.apiKeyMissing
+      }
+      
+      guard settings.openaiAPIKeyIsValid else {
+        throw TranscriptionError.apiKeyInvalid
+      }
+      
+      let openaiClient = OpenAITranscriptionClient(apiKey: settings.openaiAPIKey)
+      return try await openaiClient.transcribe(
+        audioURL: url,
+        model: modelType,
+        options: options,
+        settings: settings,
+        progressCallback: progressCallback
+      )
+    }
+  }
+  
+  /// Uses WhisperKit for transcription (original implementation)
+  private func transcribeWithWhisperKit(
+    url: URL,
+    model: String,
+    options: DecodingOptions,
+    settings: HexSettings?,
     progressCallback: @escaping (Progress) -> Void
   ) async throws -> String {
     // Load or switch to the required model if needed.
@@ -722,5 +793,11 @@ actor TranscriptionClientLive {
   private func setStreamingInactive() {
     isStreamingActive = false
     print("[TranscriptionClientLive] Streaming marked as inactive")
+  }
+  
+  /// Tests OpenAI API connection with the provided API key
+  func testOpenAIConnection(apiKey: String) async -> Bool {
+    let openaiClient = OpenAITranscriptionClient(apiKey: apiKey)
+    return await openaiClient.testAPIKey()
   }
 }

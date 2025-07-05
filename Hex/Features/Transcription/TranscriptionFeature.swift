@@ -416,7 +416,8 @@ struct TranscriptionFeature {
       // MARK: - Model Prewarming Actions
 
       case .prewarmSelectedModel:
-        let selectedModel = state.hexSettings.selectedModel
+        let selectedModelType = state.hexSettings.selectedTranscriptionModel
+        let selectedModel = selectedModelType.rawValue
 
         // Only prewarm if the model is not already warm
         guard state.hexSettings.transcriptionModelWarmStatus != .warm else {
@@ -429,7 +430,14 @@ struct TranscriptionFeature {
 
         return .run { send in
           do {
-            // Check if the model is downloaded first
+            // For OpenAI models, skip prewarming as they don't need it
+            if selectedModelType.provider == .openai {
+              print("[TranscriptionFeature] OpenAI model \(selectedModel) doesn't need prewarming")
+              await send(.prewarmCompleted(.success(selectedModel)))
+              return
+            }
+
+            // Check if the model is downloaded first (only for local models)
             let isDownloaded = await transcription.isModelDownloaded(selectedModel)
             guard isDownloaded else {
               print("[TranscriptionFeature] Model \(selectedModel) is not downloaded, skipping prewarming")
@@ -832,7 +840,7 @@ private extension TranscriptionFeature {
     // Keep the context prompt (may be set by delayed screenshot capture earlier)
     let contextPrompt = state.contextPrompt
     let recordingDuration: TimeInterval = state.recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
-    let model = state.hexSettings.selectedModel
+    let model = state.hexSettings.selectedTranscriptionModel.rawValue
     let language = state.hexSettings.outputLanguage
     let settings = state.hexSettings
     

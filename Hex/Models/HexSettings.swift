@@ -48,6 +48,15 @@ struct HexSettings: Codable, Equatable {
     var imageAnalysisPrompt: String = defaultImageAnalysisPrompt
     // Developer options
     var developerModeEnabled: Bool = false // Hidden developer mode flag
+    
+    // Transcription provider and model selection
+    var selectedTranscriptionProvider: TranscriptionProvider = .whisperKit
+    var selectedTranscriptionModel: TranscriptionModelType = .whisperLarge
+    
+    // OpenAI API configuration
+    var openaiAPIKey: String = ""
+    var openaiAPIKeyLastTested: Date? = nil
+    var openaiAPIKeyIsValid: Bool = false
 
 	// Define coding keys to match struct properties
 	enum CodingKeys: String, CodingKey {
@@ -80,6 +89,11 @@ struct HexSettings: Codable, Equatable {
         case selectedRemoteImageModel
         case imageAnalysisPrompt
         case developerModeEnabled
+        case selectedTranscriptionProvider
+        case selectedTranscriptionModel
+        case openaiAPIKey
+        case openaiAPIKeyLastTested
+        case openaiAPIKeyIsValid
 	}
 
 	init(
@@ -111,7 +125,12 @@ struct HexSettings: Codable, Equatable {
         selectedImageModel: String = "llava:latest",
         selectedRemoteImageModel: String = "llava-v1.5-7b-4096-preview",
         imageAnalysisPrompt: String = defaultImageAnalysisPrompt,
-        developerModeEnabled: Bool = false
+        developerModeEnabled: Bool = false,
+        selectedTranscriptionProvider: TranscriptionProvider = .whisperKit,
+        selectedTranscriptionModel: TranscriptionModelType = .whisperLarge,
+        openaiAPIKey: String = "",
+        openaiAPIKeyLastTested: Date? = nil,
+        openaiAPIKeyIsValid: Bool = false
 	) {
 		self.soundEffectsEnabled = soundEffectsEnabled
 		self.hotkey = hotkey
@@ -142,6 +161,11 @@ struct HexSettings: Codable, Equatable {
         self.selectedRemoteImageModel = selectedRemoteImageModel
         self.imageAnalysisPrompt = imageAnalysisPrompt
         self.developerModeEnabled = developerModeEnabled
+        self.selectedTranscriptionProvider = selectedTranscriptionProvider
+        self.selectedTranscriptionModel = selectedTranscriptionModel
+        self.openaiAPIKey = openaiAPIKey
+        self.openaiAPIKeyLastTested = openaiAPIKeyLastTested
+        self.openaiAPIKeyIsValid = openaiAPIKeyIsValid
 	}
 
 	// Custom decoder that handles missing fields
@@ -195,6 +219,13 @@ struct HexSettings: Codable, Equatable {
         imageAnalysisPrompt = try container.decodeIfPresent(String.self, forKey: .imageAnalysisPrompt) ?? defaultImageAnalysisPrompt
         // Developer options
         developerModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .developerModeEnabled) ?? false
+        // Transcription provider and model settings
+        selectedTranscriptionProvider = try container.decodeIfPresent(TranscriptionProvider.self, forKey: .selectedTranscriptionProvider) ?? .whisperKit
+        selectedTranscriptionModel = try container.decodeIfPresent(TranscriptionModelType.self, forKey: .selectedTranscriptionModel) ?? .whisperLarge
+        // OpenAI API settings
+        openaiAPIKey = try container.decodeIfPresent(String.self, forKey: .openaiAPIKey) ?? ""
+        openaiAPIKeyLastTested = try container.decodeIfPresent(Date.self, forKey: .openaiAPIKeyLastTested)
+        openaiAPIKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .openaiAPIKeyIsValid) ?? false
 	}
 }
 

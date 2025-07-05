@@ -4,6 +4,7 @@ import Foundation
 import SwiftUI
 import AVFoundation
 import ApplicationServices
+import Clocks
 
 @Reducer
 struct OnboardingFeature {
@@ -74,6 +75,7 @@ struct OnboardingFeature {
   @Dependency(\.recording) var recording
   @Dependency(\.screenCapture) var screenCapture
   @Dependency(\.keyEventMonitor) var keyEventMonitor
+  @Dependency(\.continuousClock) var clock
   
   @CasePathable
   enum Action: BindableAction {
@@ -146,9 +148,57 @@ struct OnboardingFeature {
         
       case .requestAccessibilityPermission:
         return .run { send in
-          let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
-          let granted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-          await send(.accessibilityPermissionUpdated(granted ? .granted : .denied))
+          // First, prompt the user with the system dialog
+          let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+          _ = AXIsProcessTrustedWithOptions(options)
+
+          // Open System Settings
+          if #available(macOS 13.0, *) {
+            // For macOS 13+ (System Settings)
+            NSWorkspace.shared.open(
+              URL(string: "x-apple.systempreferences:com.apple.SystemPreferences.Extensions?Privacy_Accessibility")!
+            )
+          } else {
+            // For macOS 12 and earlier (System Preferences)
+            NSWorkspace.shared.open(
+              URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+            )
+          }
+
+          // Poll for changes with state stability checking
+          var grantedCount = 0
+          var deniedCount = 0
+          let requiredConsistentChecks = 3
+          
+          for await _ in self.clock.timer(interval: .seconds(0.5)) {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+            let trusted = AXIsProcessTrustedWithOptions(options)
+            let currentStatus: PermissionStatus = trusted ? .granted : .denied
+            
+            // Count consecutive status results to ensure stability
+            if currentStatus == .granted {
+              grantedCount += 1
+              deniedCount = 0
+            } else {
+              deniedCount += 1
+              grantedCount = 0
+            }
+            
+            // Only update state if we have consistent results
+            if grantedCount >= requiredConsistentChecks {
+              // Permission is stable and granted
+              await send(.accessibilityPermissionUpdated(.granted))
+              break
+            } else if deniedCount >= requiredConsistentChecks {
+              // Permission is stable and denied, continue polling
+              await send(.accessibilityPermissionUpdated(.denied))
+            }
+            
+            // Safety timeout after 2 minutes
+            if deniedCount + grantedCount > 240 { // 240 * 0.5s = 2 minutes
+              break
+            }
+          }
         }
         
       case .requestScreenCapturePermission:
@@ -177,7 +227,8 @@ struct OnboardingFeature {
         state.accessibilityPermission = status
         if status == .granted {
           return .run { send in
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            // Add delay to allow system permission state to fully propagate
+            try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 second delay
             await send(.nextStep)
           }
         }
@@ -207,8 +258,10 @@ struct OnboardingFeature {
           }
           await send(.microphonePermissionUpdated(micPermission))
           
-          // Check accessibility
-          let accPermission: PermissionStatus = AXIsProcessTrusted() ? .granted : .denied
+          // Check accessibility - use consistent method with SettingsFeature
+          let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+          let trusted = AXIsProcessTrustedWithOptions(options)
+          let accPermission: PermissionStatus = trusted ? .granted : .denied
           await send(.accessibilityPermissionUpdated(accPermission))
           
           // Check screen capture by attempting capture

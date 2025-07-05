@@ -139,13 +139,32 @@ class KeyEventMonitorClientLive {
 
   @MainActor
   func startMonitoring() {
-    guard !isMonitoring else { return }
+    guard !isMonitoring else { 
+      logger.info("🎯 [EVENT_TAP] startMonitoring called but already monitoring")
+      return 
+    }
+    
+    logger.info("🎯 [EVENT_TAP] startMonitoring called, starting retry logic")
+    // Start monitoring with retry logic for permission timing issues
+    startMonitoringWithRetry()
+  }
+  
+  @MainActor
+  private func startMonitoringWithRetry(attempt: Int = 1, maxAttempts: Int = 5) {
+    logger.info("🎯 [EVENT_TAP] startMonitoringWithRetry attempt \(attempt)/\(maxAttempts)")
     isMonitoring = true
+
+    // Check permission status before attempting to create event tap
+    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+    let trusted = AXIsProcessTrustedWithOptions(options)
+    logger.info("🎯 [EVENT_TAP] AXIsProcessTrustedWithOptions: \(trusted)")
 
     // Create an event tap at the HID level to capture keyDown, keyUp, and flagsChanged
     let eventMask =
       ((1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue))
 
+    logger.info("🎯 [EVENT_TAP] Attempting CGEvent.tapCreate...")
+    
     guard
       let eventTap = CGEvent.tapCreate(
         tap: .cghidEventTap,
@@ -175,11 +194,27 @@ class KeyEventMonitorClientLive {
         userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
       )
     else {
-      isMonitoring = false
-      logger.error("Failed to create event tap.")
-      return
+      logger.error("🎯 [EVENT_TAP] CGEvent.tapCreate FAILED")
+      
+      // Check if we should retry due to permission timing issues
+      if attempt < maxAttempts {
+        logger.info("🎯 [EVENT_TAP] Event tap creation failed (attempt \(attempt)/\(maxAttempts)). Retrying in \(attempt) second(s)...")
+        
+        // Don't reset isMonitoring here to prevent permission state confusion
+        // Schedule retry with exponential backoff
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(attempt)) {
+          self.startMonitoringWithRetry(attempt: attempt + 1, maxAttempts: maxAttempts)
+        }
+        return
+      } else {
+        // Only reset monitoring state after all retries failed
+        isMonitoring = false
+        logger.error("🎯 [EVENT_TAP] Failed to create event tap after \(maxAttempts) attempts. This usually indicates accessibility permission issues.")
+        return
+      }
     }
 
+    logger.info("🎯 [EVENT_TAP] CGEvent.tapCreate SUCCESS")
     eventTapPort = eventTap
 
     // Create a RunLoop source and add it to the current run loop
@@ -189,7 +224,7 @@ class KeyEventMonitorClientLive {
     CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
     CGEvent.tapEnable(tap: eventTap, enable: true)
 
-    logger.info("Started monitoring key events via CGEvent tap.")
+    logger.info("🎯 [EVENT_TAP] Started monitoring key events via CGEvent tap (attempt \(attempt)/\(maxAttempts)).")
   }
 
   @MainActor
