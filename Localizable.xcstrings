@@ -68,6 +68,9 @@
     "AI Provider" : {
 
     },
+    "Aliyun Configuration" : {
+
+    },
     "Allow capturing screenshots for AI image analysis and enhanced context understanding" : {
 
     },
@@ -382,6 +385,9 @@
     "Enter context or keywords that help Whisper recognize your speech more accurately. For example: technical terms, names, or domain-specific vocabulary you frequently use." : {
 
     },
+    "Enter your Aliyun API key" : {
+
+    },
     "Enter your OpenAI API key" : {
 
     },
@@ -404,6 +410,9 @@
           }
         }
       }
+    },
+    "Get your API key from Aliyun Model Studio console" : {
+
     },
     "Get your API key from platform.openai.com" : {
 
@@ -840,7 +849,7 @@
     "The recording was long but the resulting transcription appears to be empty or incomplete. You can retry the transcription from the History tab in Settings." : {
 
     },
-    "The selected model requires an OpenAI API key. Please configure your API key or choose a local model." : {
+    "The selected model requires an API key for %@. Please configure your API key or choose a local model." : {
 
     },
     "These instructions tell the AI how to analyze captured screenshots for better transcription context." : {

@@ -68,6 +68,9 @@ struct TranscriptionClient {
   
   /// Tests OpenAI API connection with the provided API key
   var testOpenAIConnection: @Sendable (String) async -> Bool = { _ in false }
+  
+  /// Tests Aliyun API connection with the provided API key
+  var testAliyunConnection: @Sendable (String) async -> Bool = { _ in false }
 }
 
 extension TranscriptionClient: DependencyKey {
@@ -85,7 +88,8 @@ extension TranscriptionClient: DependencyKey {
       stopStreamTranscription: { await live.stopStreamTranscription() },
       getTokenizer: { await live.getTokenizer() },
       cleanWhisperTokens: { live.cleanWhisperTokens(from: $0) },
-      testOpenAIConnection: { await live.testOpenAIConnection(apiKey: $0) }
+      testOpenAIConnection: { await live.testOpenAIConnection(apiKey: $0) },
+      testAliyunConnection: { await live.testAliyunConnection(apiKey: $0) }
     )
   }
 }
@@ -379,6 +383,24 @@ actor TranscriptionClientLive {
       
       let openaiClient = OpenAITranscriptionClient(apiKey: settings.openaiAPIKey)
       return try await openaiClient.transcribe(
+        audioURL: url,
+        model: modelType,
+        options: options,
+        settings: settings,
+        progressCallback: progressCallback
+      )
+      
+    case .aliyun:
+      guard let settings = settings, !settings.aliyunAPIKey.isEmpty else {
+        throw TranscriptionError.aliyunAPIKeyMissing
+      }
+      
+      guard settings.aliyunAPIKeyIsValid else {
+        throw TranscriptionError.aliyunAPIKeyInvalid
+      }
+      
+      let aliyunClient = AliyunTranscriptionClient(apiKey: settings.aliyunAPIKey)
+      return try await aliyunClient.transcribe(
         audioURL: url,
         model: modelType,
         options: options,
@@ -799,5 +821,11 @@ actor TranscriptionClientLive {
   func testOpenAIConnection(apiKey: String) async -> Bool {
     let openaiClient = OpenAITranscriptionClient(apiKey: apiKey)
     return await openaiClient.testAPIKey()
+  }
+  
+  /// Tests Aliyun API connection with the provided API key
+  func testAliyunConnection(apiKey: String) async -> Bool {
+    let aliyunClient = AliyunTranscriptionClient(apiKey: apiKey)
+    return await aliyunClient.testAPIKey()
   }
 }

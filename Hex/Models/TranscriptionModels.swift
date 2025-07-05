@@ -12,6 +12,7 @@ import SwiftUI
 enum TranscriptionProvider: String, Codable, CaseIterable {
     case whisperKit = "whisperkit"
     case openai = "openai"
+    case aliyun = "aliyun"
 
     var displayName: String {
         switch self {
@@ -19,6 +20,8 @@ enum TranscriptionProvider: String, Codable, CaseIterable {
             return "WhisperKit (本地)"
         case .openai:
             return "OpenAI Whisper (远程)"
+        case .aliyun:
+            return "阿里云百炼 (远程)"
         }
     }
 
@@ -28,6 +31,8 @@ enum TranscriptionProvider: String, Codable, CaseIterable {
             return "使用本地模型进行转录，无需网络连接，数据完全私密"
         case .openai:
             return "使用 OpenAI 云端模型，需要 API Key，精度更高"
+        case .aliyun:
+            return "使用阿里云百炼模型，需要 API Key，支持实时流式转录"
         }
     }
 }
@@ -43,6 +48,9 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
     case openaiGpt4oMiniTranscribe = "gpt-4o-mini-transcribe"
     case openaiGpt4oTranscribe = "gpt-4o-transcribe"
     
+    // 阿里云百炼模型
+    case aliyunParaformerRealtimeV2 = "paraformer-realtime-v2"
+    
     var displayName: String {
         switch self {
         case .whisperTiny:
@@ -55,6 +63,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return "GPT-4o Mini Transcribe (经济型)"
         case .openaiGpt4oTranscribe:
             return "GPT-4o Transcribe (高精度)"
+        case .aliyunParaformerRealtimeV2:
+            return "Paraformer 实时转录 V2 (流式)"
         }
     }
     
@@ -70,6 +80,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return "OpenAI 经济型转录模型，成本低廉，适合大量转录任务"
         case .openaiGpt4oTranscribe:
             return "OpenAI 高精度转录模型，最佳质量，支持多语言识别"
+        case .aliyunParaformerRealtimeV2:
+            return "阿里云百炼实时转录模型，支持中文、英语等多语言，实时流式处理"
         }
     }
     
@@ -79,11 +91,13 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return .whisperKit
         case .openaiGpt4oMiniTranscribe, .openaiGpt4oTranscribe:
             return .openai
+        case .aliyunParaformerRealtimeV2:
+            return .aliyun
         }
     }
     
     var requiresAPIKey: Bool {
-        return provider == .openai
+        return provider == .openai || provider == .aliyun
     }
     
     var isLocal: Bool {
@@ -98,6 +112,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return 0.003  // $0.003/分钟 (经济型模型)
         case .openaiGpt4oTranscribe:
             return 0.006  // $0.006/分钟 (高精度模型)
+        case .aliyunParaformerRealtimeV2:
+            return 0.002  // ¥0.002/分钟 (阿里云模型)
         }
     }
 
@@ -112,6 +128,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return "externaldrive"
         case .openai:
             return "cloud"
+        case .aliyun:
+            return "waveform"
         }
     }
     
@@ -121,6 +139,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return .blue
         case .openai:
             return .orange
+        case .aliyun:
+            return .green
         }
     }
     
@@ -130,6 +150,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return true
         case .openai:
             return false
+        case .aliyun:
+            return true
         }
     }
     
@@ -151,6 +173,9 @@ enum TranscriptionError: Error, LocalizedError {
     case networkError(Error)
     case unsupportedFileFormat(String)
     case audioProcessingError(String)
+    case webSocketError(String)
+    case aliyunAPIKeyMissing
+    case aliyunAPIKeyInvalid
     
     var errorDescription: String? {
         switch self {
@@ -164,6 +189,10 @@ enum TranscriptionError: Error, LocalizedError {
             return "缺少 OpenAI API 密钥"
         case .apiKeyInvalid:
             return "OpenAI API 密钥无效"
+        case .aliyunAPIKeyMissing:
+            return "缺少阿里云 API 密钥"
+        case .aliyunAPIKeyInvalid:
+            return "阿里云 API 密钥无效"
         case .apiError(let code, let message):
             return "API 错误 (\(code)): \(message)"
         case .invalidResponse:
@@ -174,6 +203,8 @@ enum TranscriptionError: Error, LocalizedError {
             return "不支持的文件格式: \(format)"
         case .audioProcessingError(let message):
             return "音频处理错误: \(message)"
+        case .webSocketError(let message):
+            return "WebSocket 错误: \(message)"
         }
     }
     
@@ -181,12 +212,16 @@ enum TranscriptionError: Error, LocalizedError {
         switch self {
         case .apiKeyMissing, .apiKeyInvalid:
             return "请在设置中配置有效的 OpenAI API 密钥"
+        case .aliyunAPIKeyMissing, .aliyunAPIKeyInvalid:
+            return "请在设置中配置有效的阿里云 API 密钥"
         case .fileTooLarge:
             return "请使用较小的音频文件或选择本地模型"
         case .unsupportedFileFormat:
             return "请使用支持的音频格式：mp3, wav, m4a, flac"
         case .networkError:
             return "请检查网络连接或切换到本地模型"
+        case .webSocketError:
+            return "WebSocket 连接失败，请检查网络连接"
         default:
             return nil
         }
@@ -196,7 +231,9 @@ enum TranscriptionError: Error, LocalizedError {
         switch self {
         case .apiKeyMissing, .apiKeyInvalid:
             return "访问 platform.openai.com 获取 API 密钥"
-        case .fileTooLarge, .networkError:
+        case .aliyunAPIKeyMissing, .aliyunAPIKeyInvalid:
+            return "访问阿里云百炼控制台获取 API 密钥"
+        case .fileTooLarge, .networkError, .webSocketError:
             return "可以尝试使用本地 WhisperKit 模型"
         default:
             return nil

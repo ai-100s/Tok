@@ -57,6 +57,11 @@ struct HexSettings: Codable, Equatable {
     var openaiAPIKey: String = ""
     var openaiAPIKeyLastTested: Date? = nil
     var openaiAPIKeyIsValid: Bool = false
+    
+    // Aliyun API configuration
+    var aliyunAPIKey: String = ""
+    var aliyunAPIKeyLastTested: Date? = nil
+    var aliyunAPIKeyIsValid: Bool = false
 
 	// Define coding keys to match struct properties
 	enum CodingKeys: String, CodingKey {
@@ -94,6 +99,9 @@ struct HexSettings: Codable, Equatable {
         case openaiAPIKey
         case openaiAPIKeyLastTested
         case openaiAPIKeyIsValid
+        case aliyunAPIKey
+        case aliyunAPIKeyLastTested
+        case aliyunAPIKeyIsValid
 	}
 
 	init(
@@ -130,7 +138,10 @@ struct HexSettings: Codable, Equatable {
         selectedTranscriptionModel: TranscriptionModelType = .whisperLarge,
         openaiAPIKey: String = "",
         openaiAPIKeyLastTested: Date? = nil,
-        openaiAPIKeyIsValid: Bool = false
+        openaiAPIKeyIsValid: Bool = false,
+        aliyunAPIKey: String = "",
+        aliyunAPIKeyLastTested: Date? = nil,
+        aliyunAPIKeyIsValid: Bool = false
 	) {
 		self.soundEffectsEnabled = soundEffectsEnabled
 		self.hotkey = hotkey
@@ -166,6 +177,9 @@ struct HexSettings: Codable, Equatable {
         self.openaiAPIKey = openaiAPIKey
         self.openaiAPIKeyLastTested = openaiAPIKeyLastTested
         self.openaiAPIKeyIsValid = openaiAPIKeyIsValid
+        self.aliyunAPIKey = aliyunAPIKey
+        self.aliyunAPIKeyLastTested = aliyunAPIKeyLastTested
+        self.aliyunAPIKeyIsValid = aliyunAPIKeyIsValid
 	}
 
 	// Custom decoder that handles missing fields
@@ -226,6 +240,10 @@ struct HexSettings: Codable, Equatable {
         openaiAPIKey = try container.decodeIfPresent(String.self, forKey: .openaiAPIKey) ?? ""
         openaiAPIKeyLastTested = try container.decodeIfPresent(Date.self, forKey: .openaiAPIKeyLastTested)
         openaiAPIKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .openaiAPIKeyIsValid) ?? false
+        // Aliyun API settings
+        aliyunAPIKey = try container.decodeIfPresent(String.self, forKey: .aliyunAPIKey) ?? ""
+        aliyunAPIKeyLastTested = try container.decodeIfPresent(Date.self, forKey: .aliyunAPIKeyLastTested)
+        aliyunAPIKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .aliyunAPIKeyIsValid) ?? false
 	}
 }
 

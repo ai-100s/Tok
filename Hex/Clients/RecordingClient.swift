@@ -607,8 +607,8 @@ actor RecordingClientLive {
       AVFormatIDKey: Int(kAudioFormatLinearPCM),
       AVSampleRateKey: 16000.0,
       AVNumberOfChannelsKey: 1,
-      AVLinearPCMBitDepthKey: 32,
-      AVLinearPCMIsFloatKey: true,
+      AVLinearPCMBitDepthKey: 16,
+      AVLinearPCMIsFloatKey: false,
       AVLinearPCMIsBigEndianKey: false,
       AVLinearPCMIsNonInterleaved: false,
     ]

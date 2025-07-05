@@ -105,8 +105,9 @@ struct SettingsView: View {
 			}
 
 			// --- Provider Configuration Section ---
-			if store.hexSettings.selectedTranscriptionProvider == .openai {
-				// For remote providers: separate API configuration and model selection
+			switch store.hexSettings.selectedTranscriptionProvider {
+			case .openai:
+				// OpenAI remote provider: API configuration and model selection
 				Section("OpenAI Configuration") {
 					OpenAIAPIConfigurationView(store: store)
 				}
@@ -114,8 +115,19 @@ struct SettingsView: View {
 				Section("Model Selection") {
 					TranscriptionModelPicker(store: store)
 				}
-			} else {
-				// For local providers: show model download section and model selection together
+				
+			case .aliyun:
+				// Aliyun remote provider: API configuration and model selection
+				Section("Aliyun Configuration") {
+					AliyunAPIConfigurationView(store: store)
+				}
+
+				Section("Model Selection") {
+					TranscriptionModelPicker(store: store)
+				}
+				
+			case .whisperKit:
+				// Local provider: show model download section and model selection
 				Section("Local Model Download") {
 					ModelDownloadView(store: store.scope(state: \.modelDownload, action: \.modelDownload))
 				}
@@ -296,8 +308,19 @@ struct TranscriptionModelPicker: View {
                 // Update the legacy selectedModel field for compatibility
                 store.send(.binding(.set(\.hexSettings.selectedModel, newValue.rawValue)))
 
-                if newValue.requiresAPIKey && store.hexSettings.openaiAPIKey.isEmpty {
-                    showingAPIKeyAlert = true
+                if newValue.requiresAPIKey {
+                    let needsAPIKey = switch newValue.provider {
+                    case .openai:
+                        store.hexSettings.openaiAPIKey.isEmpty
+                    case .aliyun:
+                        store.hexSettings.aliyunAPIKey.isEmpty
+                    case .whisperKit:
+                        false
+                    }
+                    
+                    if needsAPIKey {
+                        showingAPIKeyAlert = true
+                    }
                 }
             }
 
@@ -325,7 +348,8 @@ struct TranscriptionModelPicker: View {
                 // Keep the selection, user needs to configure API key
             }
         } message: {
-            Text("The selected model requires an OpenAI API key. Please configure your API key or choose a local model.")
+            let providerName = store.hexSettings.selectedTranscriptionModel.provider.displayName
+            Text("The selected model requires an API key for \(providerName). Please configure your API key or choose a local model.")
         }
     }
 }
@@ -495,6 +519,67 @@ struct OpenAIAPIConfigurationView: View {
 
             // Help Text
             Text("Get your API key from platform.openai.com")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Aliyun API Configuration View
+
+struct AliyunAPIConfigurationView: View {
+    @Bindable var store: StoreOf<SettingsFeature>
+    @State private var showingAPIKey = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // API Key Input
+            HStack {
+                Label {
+                    HStack {
+                        if showingAPIKey {
+                            TextField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
+                                .textFieldStyle(.roundedBorder)
+                        } else {
+                            SecureField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        Button(action: { showingAPIKey.toggle() }) {
+                            Image(systemName: showingAPIKey ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } icon: {
+                    Image(systemName: "key")
+                }
+            }
+
+            // Test Connection Button
+            HStack {
+                Button("Test Connection") {
+                    store.send(.testAliyunAPIKey)
+                }
+                .disabled(store.hexSettings.aliyunAPIKey.isEmpty)
+
+                Spacer()
+
+                // Connection Status
+                if store.hexSettings.aliyunAPIKeyIsValid {
+                    Label("Valid", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                } else if !store.hexSettings.aliyunAPIKey.isEmpty {
+                    Label("Invalid", systemImage: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+            }
+
+            // Help Text
+            Text("Get your API key from Aliyun Model Studio console")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
