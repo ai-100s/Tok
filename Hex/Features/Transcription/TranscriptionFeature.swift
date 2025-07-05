@@ -698,7 +698,8 @@ private extension TranscriptionFeature {
     }
 
     // Extract required values used later in the async transcription sequence
-    let model = state.hexSettings.selectedTranscriptionModel.rawValue
+    let selectedModelType = state.hexSettings.selectedTranscriptionModel
+    let model = selectedModelType.rawValue
     let language = state.hexSettings.outputLanguage
     let settings = state.hexSettings
     // Values for image analysis
@@ -761,9 +762,33 @@ private extension TranscriptionFeature {
             chunkingStrategy: .vad
           )
 
-          print("Starting streaming transcription for real-time feedback…")
+          // Check if the selected model supports streaming
+          let streamingModel: String
+          if selectedModelType.supportsStreaming {
+            streamingModel = model
+            print("Starting streaming transcription with selected model: \(streamingModel)")
+          } else {
+            // Use fallback WhisperKit model for streaming when OpenAI model is selected
+            let fallbackModelType = TranscriptionModelType.getFallbackStreamingModel()
+            streamingModel = fallbackModelType.rawValue
+            print("Selected model \(model) doesn't support streaming. Using fallback model for streaming: \(streamingModel)")
+            
+            // Check if fallback model is available before attempting to use it
+            let isAvailable = await transcription.isModelDownloaded(streamingModel)
+            if !isAvailable {
+              print("Fallback streaming model \(streamingModel) is not available. Skipping streaming transcription.")
+              // Send empty update to indicate streaming is not available
+              await send(.streamTranscriptionUpdate(StreamTranscriptionUpdate(
+                confirmedSegments: [],
+                unconfirmedSegments: [],
+                currentText: "",
+                isComplete: false
+              )))
+              return
+            }
+          }
 
-          try await transcription.startStreamTranscription(model, decodeOptions, settings) { update in
+          try await transcription.startStreamTranscription(streamingModel, decodeOptions, settings) { update in
             // Forward every update to the reducer.
             Task { await send(.streamTranscriptionUpdate(update)) }
           }

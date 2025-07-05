@@ -123,6 +123,19 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return .orange
         }
     }
+    
+    var supportsStreaming: Bool {
+        switch self.provider {
+        case .whisperKit:
+            return true
+        case .openai:
+            return false
+        }
+    }
+    
+    static func getFallbackStreamingModel() -> TranscriptionModelType {
+        return .whisperTiny
+    }
 }
 
 
