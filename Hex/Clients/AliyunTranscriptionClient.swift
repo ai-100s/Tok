@@ -172,7 +172,7 @@ actor AliyunTranscriptionEngine {
         progressCallback(progress)
 
         // 开始流式处理：等待任务开始，然后并发发送音频和接收结果
-        let result = try await streamAudioAndCollectResults(audioData: audioData, progressCallback: progressCallback)
+        let result = try await streamAudioAndCollectResults(audioData: audioData, settings: settings, progressCallback: progressCallback)
 
         progress.completedUnitCount = 90
         progressCallback(progress)
@@ -189,11 +189,20 @@ actor AliyunTranscriptionEngine {
     /// 流式处理音频发送和结果接收，符合官方 Python 实现的时序
     private func streamAudioAndCollectResults(
         audioData: Data,
+        settings: HexSettings?,
         progressCallback: @escaping (Progress) -> Void
     ) async throws -> String {
         var latestTranscription: String = ""  // 保存最新的完整转录文本
         var taskStarted = false
         var taskFinished = false
+        
+        // 时间分析：记录转录开始时间
+        let transcriptionStartTime = Date()
+        
+        // 计算音频时长
+        let pcmData = try convertToPCM(audioData: audioData)
+        let audioDurationSeconds = Double(pcmData.count) / (16000.0 * 2.0) // 16kHz, 16-bit
+        TokLogger.log("[TIMING] Audio duration: \(String(format: "%.3f", audioDurationSeconds))s, starting transcription at \(transcriptionStartTime.timeIntervalSince1970)")
 
         // 创建并发任务来处理消息接收
         let messageHandlingTask = Task {
@@ -208,12 +217,12 @@ actor AliyunTranscriptionEngine {
                     switch message {
                     case .data(let data):
                         if let event = try? JSONDecoder().decode(AliyunEvent.self, from: data) {
-                            await handleStreamEvent(event: event, latestTranscription: &latestTranscription, taskStarted: &taskStarted, taskFinished: &taskFinished)
+                            await handleStreamEvent(event: event, latestTranscription: &latestTranscription, taskStarted: &taskStarted, taskFinished: &taskFinished, settings: settings)
                         }
                     case .string(let string):
                         if let data = string.data(using: .utf8),
                            let event = try? JSONDecoder().decode(AliyunEvent.self, from: data) {
-                            await handleStreamEvent(event: event, latestTranscription: &latestTranscription, taskStarted: &taskStarted, taskFinished: &taskFinished)
+                            await handleStreamEvent(event: event, latestTranscription: &latestTranscription, taskStarted: &taskStarted, taskFinished: &taskFinished, settings: settings)
                         }
                     @unknown default:
                         break
@@ -238,7 +247,7 @@ actor AliyunTranscriptionEngine {
         TokLogger.log("Task started, beginning audio transmission")
 
         // 开始发送音频数据
-        try await sendAudioDataStreaming(audioData: audioData, progressCallback: progressCallback)
+        try await sendAudioDataStreaming(audioData: audioData, settings: settings, progressCallback: progressCallback)
 
         // 发送完成指令
         try await sendFinishTaskInstruction()
@@ -250,6 +259,15 @@ actor AliyunTranscriptionEngine {
         }
 
         messageHandlingTask.cancel()
+        
+        // 时间分析：计算转录总耗时和效率
+        let transcriptionEndTime = Date()
+        let transcriptionDuration = transcriptionEndTime.timeIntervalSince(transcriptionStartTime)
+        let transcriptionEfficiency = audioDurationSeconds / transcriptionDuration
+        
+        TokLogger.log("[TIMING] Transcription completed in \(String(format: "%.3f", transcriptionDuration))s")
+        TokLogger.log("[TIMING] Transcription efficiency: \(String(format: "%.2f", transcriptionEfficiency))x (\(String(format: "%.1f", transcriptionEfficiency * 100))% real-time)")
+        TokLogger.log("[TIMING] Audio: \(String(format: "%.3f", audioDurationSeconds))s → Transcription: \(String(format: "%.3f", transcriptionDuration))s")
 
         return latestTranscription
     }
@@ -259,7 +277,8 @@ actor AliyunTranscriptionEngine {
         event: AliyunEvent,
         latestTranscription: inout String,
         taskStarted: inout Bool,
-        taskFinished: inout Bool
+        taskFinished: inout Bool,
+        settings: HexSettings?
     ) async {
         TokLogger.log("Received event: \(event.header.event)")
 
@@ -269,40 +288,40 @@ actor AliyunTranscriptionEngine {
             taskStarted = true
 
         case "result-generated":
-            TokLogger.log("Processing result-generated event")
+            // 批量模式：只记录中间结果，不输出详细日志，减少资源消耗
             if let payload = event.payload {
-                TokLogger.log("Payload exists: \(payload)")
                 if let output = payload.output {
-                    TokLogger.log("Output exists: \(output)")
-                    
                     // 首先尝试从sentence.text获取文本（Aliyun实际格式）
                     var resultText: String? = nil
                     if let sentence = output.sentence, let sentenceText = sentence.text {
                         resultText = sentenceText
-                        TokLogger.log("Found text in sentence: '\(sentenceText)'")
                     } 
                     // 如果sentence不存在，尝试直接从text字段获取（兼容旧格式）
                     else if let directText = output.text {
                         resultText = directText
-                        TokLogger.log("Found text directly: '\(directText)'")
                     }
                     
                     if let text = resultText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        // 使用最新的完整文本替换之前的内容
+                        // 根据设置决定是否输出详细日志
                         latestTranscription = text
-                        TokLogger.log("Updated transcription: \(text)")
-                    } else {
-                        TokLogger.log("No valid text found in output - sentence: \(output.sentence), direct text: \(output.text)")
+                        
+                        // 在非批量模式或DEBUG模式下输出中间结果
+                        if let settings = settings, !settings.aliyunBatchMode {
+                            TokLogger.log("[REALTIME] Intermediate result: \(text)")
+                        } else {
+                            #if DEBUG
+                            TokLogger.log("[BATCH] Intermediate result: \(text.prefix(50))...")
+                            #endif
+                        }
                     }
-                } else {
-                    TokLogger.log("No output in payload")
                 }
-            } else {
-                TokLogger.log("No payload in result-generated event")
             }
 
         case "task-finished":
             TokLogger.log("Aliyun task finished successfully")
+            if !latestTranscription.isEmpty {
+                TokLogger.log("[BATCH] Final transcription result: \(latestTranscription)")
+            }
             taskFinished = true
 
         case "task-failed":
@@ -312,7 +331,6 @@ actor AliyunTranscriptionEngine {
 
         default:
             TokLogger.log("Received unknown event: \(event.header.event)")
-            TokLogger.log("Full event data: \(event)")
         }
     }
 
@@ -370,22 +388,24 @@ actor AliyunTranscriptionEngine {
         TokLogger.log("Aliyun audio data sent: \(totalChunks) chunks")
     }
 
-    /// 流式发送音频数据，模拟实时音频流
-    private func sendAudioDataStreaming(audioData: Data, progressCallback: @escaping (Progress) -> Void) async throws {
+    /// 批量模式发送音频数据：保持实时发送以避免超时，但减少日志输出
+    private func sendAudioDataStreaming(audioData: Data, settings: HexSettings?, progressCallback: @escaping (Progress) -> Void) async throws {
         // Convert WAV to PCM if needed
         let pcmData = try convertToPCM(audioData: audioData)
-
-        // 添加音频数据调试信息
-        TokLogger.log("Original audio data size: \(audioData.count) bytes")
-        TokLogger.log("PCM data size: \(pcmData.count) bytes")
-        TokLogger.log("Audio duration estimate: \(Double(pcmData.count) / (16000.0 * 2.0)) seconds")
+        let audioDuration = Double(pcmData.count) / (16000.0 * 2.0)
+        
+        // 根据设置决定日志输出级别
+        if let settings = settings, !settings.aliyunBatchMode {
+            TokLogger.log("[REALTIME] Starting audio transmission: \(audioData.count) bytes, duration: \(String(format: "%.3f", audioDuration))s")
+        } else {
+            TokLogger.log("[BATCH] Starting audio transmission: \(audioData.count) bytes, duration: \(String(format: "%.3f", audioDuration))s")
+        }
 
         // 按照官方建议：每次发送100ms的音频，并间隔100ms
         // 100ms 的音频数据 = 16000 采样率 * 0.1 秒 * 2 字节 = 3200 字节
         let chunkSize = 3200
         let totalChunks = (pcmData.count + chunkSize - 1) / chunkSize
-
-        TokLogger.log("Starting streaming audio transmission: \(totalChunks) chunks")
+        let sendStartTime = Date()
 
         for i in 0..<totalChunks {
             let startIndex = i * chunkSize
@@ -404,8 +424,13 @@ actor AliyunTranscriptionEngine {
             // 按照官方建议：间隔100ms
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-
-        TokLogger.log("Streaming audio transmission completed: \(totalChunks) chunks")
+        
+        let sendDuration = Date().timeIntervalSince(sendStartTime)
+        if let settings = settings, !settings.aliyunBatchMode {
+            TokLogger.log("[REALTIME] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks")
+        } else {
+            TokLogger.log("[BATCH] Audio transmission completed in \(String(format: "%.3f", sendDuration))s, sent \(totalChunks) chunks")
+        }
     }
 
     private func sendFinishTaskInstruction() async throws {

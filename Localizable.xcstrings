@@ -71,6 +71,12 @@
     "Aliyun Configuration" : {
 
     },
+    "Batch Transcription Mode" : {
+
+    },
+    "Wait until speaking is complete before showing the final result, reducing intermediate logs and resource consumption" : {
+
+    },
     "Allow capturing screenshots for AI image analysis and enhanced context understanding" : {
 
     },

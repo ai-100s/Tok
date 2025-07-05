@@ -583,6 +583,18 @@ struct AliyunAPIConfigurationView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Batch Mode Toggle
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Batch Transcription Mode", isOn: $store.hexSettings.aliyunBatchMode)
+                    Text("Wait until speaking is complete before showing the final result, reducing intermediate logs and resource consumption")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } icon: {
+                Image(systemName: "clock.badge.checkmark")
+            }
         }
         .padding(.vertical, 4)
     }
