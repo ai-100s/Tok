@@ -114,7 +114,7 @@ public struct ModelDownloadFeature {
         public var hasLoadedModels: Bool = false
 
 		// Convenience computed vars
-		var selectedModel: String { hexSettings.selectedModel }
+		var selectedModel: String { hexSettings.selectedTranscriptionModel.rawValue }
 		var selectedModelIsDownloaded: Bool {
 			availableModels[id: selectedModel]?.isDownloaded ?? false
 		}
@@ -178,6 +178,10 @@ public struct ModelDownloadFeature {
 
 		case let .selectModel(model):
 			state.$hexSettings.withLock {
+				// Update both the new selectedTranscriptionModel and legacy selectedModel for compatibility
+				if let modelType = TranscriptionModelType(rawValue: model) {
+					$0.selectedTranscriptionModel = modelType
+				}
 				$0.selectedModel = model
 				$0.transcriptionModelWarmStatus = .cold
 			}
@@ -431,7 +435,7 @@ private struct AllModelsPicker: View {
 		Picker(
 			"Selected Model",
 			selection: Binding(
-				get: { store.hexSettings.selectedModel },
+				get: { store.hexSettings.selectedTranscriptionModel.rawValue },
 				set: { store.send(.selectModel($0)) }
 			)
 		) {
@@ -448,7 +452,7 @@ private struct AllModelsPicker: View {
 							.foregroundColor(.blue)
 					}
 					// Show green check for selected model
-					if info.name == store.hexSettings.selectedModel {
+					if info.name == store.hexSettings.selectedTranscriptionModel.rawValue {
 						Image(systemName: "checkmark.circle.fill")
 							.foregroundColor(.green)
 						ModelWarmStatusIndicator(status: store.hexSettings.transcriptionModelWarmStatus)
@@ -568,7 +572,7 @@ private struct FooterView: View {
 				// If we can find it in availableModels we use that reference, otherwise we
 				// fall back to the raw `selectedModel` string from settings.
 				HStack(spacing: 4) {
-					let selectedName = store.availableModels.first(where: { $0.name == store.hexSettings.selectedModel })?.name ?? store.hexSettings.selectedModel
+					let selectedName = store.availableModels.first(where: { $0.name == store.hexSettings.selectedTranscriptionModel.rawValue })?.name ?? store.hexSettings.selectedTranscriptionModel.rawValue
 					if !selectedName.isEmpty {
 						Text("Selected: \(selectedName)")
 							.font(.caption)

@@ -698,7 +698,7 @@ private extension TranscriptionFeature {
     }
 
     // Extract required values used later in the async transcription sequence
-    let model = state.hexSettings.selectedModel
+    let model = state.hexSettings.selectedTranscriptionModel.rawValue
     let language = state.hexSettings.outputLanguage
     let settings = state.hexSettings
     // Values for image analysis
