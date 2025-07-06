@@ -74,6 +74,10 @@ struct SettingsFeature {
     // Aliyun API Key Testing
     case testAliyunAPIKey
     case aliyunAPIKeyTestResult(Bool)
+    
+    // Aliyun AppKey Testing
+    case testAliyunAppKey
+    case aliyunAppKeyTestResult(Bool)
 
     // Navigation
     case openHistory
@@ -463,6 +467,30 @@ struct SettingsFeature {
           TokLogger.log("Aliyun API key validation successful")
         } else {
           TokLogger.log("Aliyun API key validation failed", level: .warn)
+        }
+        
+        return .none
+        
+      case .testAliyunAppKey:
+        guard !state.hexSettings.aliyunAppKey.isEmpty, !state.hexSettings.aliyunAccessKeyId.isEmpty, !state.hexSettings.aliyunAccessKeySecret.isEmpty else {
+          return .none
+        }
+        
+        return .run { [appKey = state.hexSettings.aliyunAppKey, accessKeyId = state.hexSettings.aliyunAccessKeyId, accessKeySecret = state.hexSettings.aliyunAccessKeySecret] send in
+          let isValid = await transcription.testAliyunAppKey(appKey, accessKeyId, accessKeySecret)
+          await send(.aliyunAppKeyTestResult(isValid))
+        }
+        
+      case let .aliyunAppKeyTestResult(isValid):
+        state.$hexSettings.withLock {
+          $0.aliyunAppKeyIsValid = isValid
+          $0.aliyunAppKeyLastTested = Date()
+        }
+        
+        if isValid {
+          TokLogger.log("Aliyun AppKey validation successful")
+        } else {
+          TokLogger.log("Aliyun AppKey validation failed", level: .warn)
         }
         
         return .none

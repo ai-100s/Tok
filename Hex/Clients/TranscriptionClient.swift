@@ -71,6 +71,9 @@ struct TranscriptionClient {
   
   /// Tests Aliyun API connection with the provided API key
   var testAliyunConnection: @Sendable (String) async -> Bool = { _ in false }
+  
+  /// Tests Aliyun AppKey for file transcription
+  var testAliyunAppKey: @Sendable (String, String, String) async -> Bool = { _, _, _ in false }
 }
 
 extension TranscriptionClient: DependencyKey {
@@ -89,7 +92,8 @@ extension TranscriptionClient: DependencyKey {
       getTokenizer: { await live.getTokenizer() },
       cleanWhisperTokens: { live.cleanWhisperTokens(from: $0) },
       testOpenAIConnection: { await live.testOpenAIConnection(apiKey: $0) },
-      testAliyunConnection: { await live.testAliyunConnection(apiKey: $0) }
+      testAliyunConnection: { await live.testAliyunConnection(apiKey: $0) },
+      testAliyunAppKey: { appKey, accessKeyId, accessKeySecret in await live.testAliyunAppKey(appKey: appKey, accessKeyId: accessKeyId, accessKeySecret: accessKeySecret) }
     )
   }
 }
@@ -391,22 +395,48 @@ actor TranscriptionClientLive {
       )
       
     case .aliyun:
-      guard let settings = settings, !settings.aliyunAPIKey.isEmpty else {
+      guard let settings = settings else {
         throw TranscriptionError.aliyunAPIKeyMissing
       }
       
-      guard settings.aliyunAPIKeyIsValid else {
-        throw TranscriptionError.aliyunAPIKeyInvalid
+      // 根据模型类型选择不同的客户端
+      if modelType.isFileBasedTranscription {
+        // 文件转录模式：使用 AppKey + Token
+        guard !settings.aliyunAppKey.isEmpty else {
+          throw TranscriptionError.aliyunAPIKeyMissing
+        }
+        
+        guard settings.aliyunAppKeyIsValid else {
+          throw TranscriptionError.aliyunAPIKeyInvalid
+        }
+        
+        let aliyunFileClient = AliyunFileTranscriptionClient(appKey: settings.aliyunAppKey, accessKeyId: settings.aliyunAccessKeyId, accessKeySecret: settings.aliyunAccessKeySecret)
+        return try await aliyunFileClient.transcribe(
+          audioURL: url,
+          model: modelType,
+          options: options,
+          settings: settings,
+          progressCallback: progressCallback
+        )
+      } else {
+        // 实时流式模式：使用传统 API Key
+        guard !settings.aliyunAPIKey.isEmpty else {
+          throw TranscriptionError.aliyunAPIKeyMissing
+        }
+        
+        guard settings.aliyunAPIKeyIsValid else {
+          throw TranscriptionError.aliyunAPIKeyInvalid
+        }
+        
+        let aliyunClient = AliyunTranscriptionClient(apiKey: settings.aliyunAPIKey)
+        return try await aliyunClient.transcribe(
+          audioURL: url,
+          model: modelType,
+          options: options,
+          settings: settings,
+          progressCallback: progressCallback
+        )
       }
-      
-      let aliyunClient = AliyunTranscriptionClient(apiKey: settings.aliyunAPIKey)
-      return try await aliyunClient.transcribe(
-        audioURL: url,
-        model: modelType,
-        options: options,
-        settings: settings,
-        progressCallback: progressCallback
-      )
     }
   }
   
@@ -827,5 +857,11 @@ actor TranscriptionClientLive {
   func testAliyunConnection(apiKey: String) async -> Bool {
     let aliyunClient = AliyunTranscriptionClient(apiKey: apiKey)
     return await aliyunClient.testAPIKey()
+  }
+  
+  /// Tests Aliyun AppKey for file transcription
+  func testAliyunAppKey(appKey: String, accessKeyId: String, accessKeySecret: String) async -> Bool {
+    let aliyunFileClient = AliyunFileTranscriptionClient(appKey: appKey, accessKeyId: accessKeyId, accessKeySecret: accessKeySecret)
+    return await aliyunFileClient.testAppKey()
   }
 }

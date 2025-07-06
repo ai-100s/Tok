@@ -50,6 +50,7 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
     
     // 阿里云百炼模型
     case aliyunParaformerRealtimeV2 = "paraformer-realtime-v2"
+    case aliyunParaformerFileV1 = "paraformer-file-v1"
     
     var displayName: String {
         switch self {
@@ -65,6 +66,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return "GPT-4o Transcribe (高精度)"
         case .aliyunParaformerRealtimeV2:
             return "Paraformer 实时转录 V2 (流式)"
+        case .aliyunParaformerFileV1:
+            return "默认 (文件极速转录)"
         }
     }
     
@@ -82,6 +85,8 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return "OpenAI 高精度转录模型，最佳质量，支持多语言识别"
         case .aliyunParaformerRealtimeV2:
             return "阿里云百炼实时转录模型，支持中文、英语等多语言，实时流式处理"
+        case .aliyunParaformerFileV1:
+            return "阿里云百炼文件转录模型，支持100MB大文件，30分钟音频10秒转录完成"
         }
     }
     
@@ -91,7 +96,7 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
             return .whisperKit
         case .openaiGpt4oMiniTranscribe, .openaiGpt4oTranscribe:
             return .openai
-        case .aliyunParaformerRealtimeV2:
+        case .aliyunParaformerRealtimeV2, .aliyunParaformerFileV1:
             return .aliyun
         }
     }
@@ -113,7 +118,9 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
         case .openaiGpt4oTranscribe:
             return 0.006  // $0.006/分钟 (高精度模型)
         case .aliyunParaformerRealtimeV2:
-            return 0.002  // ¥0.002/分钟 (阿里云模型)
+            return 0.002  // ¥0.002/分钟 (阿里云实时模型)
+        case .aliyunParaformerFileV1:
+            return 0.0015  // ¥0.0015/分钟 (阿里云文件模型，更经济)
         }
     }
 
@@ -145,13 +152,28 @@ enum TranscriptionModelType: String, Codable, CaseIterable, Equatable {
     }
     
     var supportsStreaming: Bool {
-        switch self.provider {
-        case .whisperKit:
+        switch self {
+        case .whisperTiny, .whisperBase, .whisperLarge:
             return true
-        case .openai:
+        case .openaiGpt4oMiniTranscribe, .openaiGpt4oTranscribe:
             return false
-        case .aliyun:
+        case .aliyunParaformerRealtimeV2:
             return true
+        case .aliyunParaformerFileV1:
+            return false  // 文件模式不支持流式
+        }
+    }
+    
+    var isFileBasedTranscription: Bool {
+        switch self {
+        case .whisperTiny, .whisperBase, .whisperLarge:
+            return false  // 本地模型支持实时
+        case .openaiGpt4oMiniTranscribe, .openaiGpt4oTranscribe:
+            return true   // OpenAI 是文件上传模式
+        case .aliyunParaformerRealtimeV2:
+            return false  // 实时流式
+        case .aliyunParaformerFileV1:
+            return true   // 文件上传模式
         }
     }
     

@@ -13,10 +13,16 @@
     "•" : {
       "shouldTranslate" : false
     },
+    "• Better suited for longer recordings" : {
+
+    },
     "• Better transcription accuracy" : {
 
     },
     "• Context-aware processing" : {
+
+    },
+    "• Faster processing: 30min audio in 10sec" : {
 
     },
     "• Global hotkey monitoring" : {
@@ -25,10 +31,16 @@
     "• Improved technical term recognition" : {
 
     },
+    "• More stable network connection" : {
+
+    },
     "• Quick transcription access" : {
 
     },
     "• Start recording from any app" : {
+
+    },
+    "• Support for files up to 100MB" : {
 
     },
     "$%.3f/min" : {
@@ -71,18 +83,6 @@
     "Aliyun Configuration" : {
 
     },
-    "Batch Transcription Mode" : {
-
-    },
-    "Wait until speaking is complete before showing the final result, reducing intermediate logs and resource consumption" : {
-
-    },
-    "Performance Optimization" : {
-
-    },
-    "Enable dynamic sending strategy and optimized timing for faster transcription. May reduce accuracy slightly for very long audio." : {
-
-    },
     "Allow capturing screenshots for AI image analysis and enhanced context understanding" : {
 
     },
@@ -107,6 +107,9 @@
 
     },
     "Back" : {
+
+    },
+    "Batch Transcription Mode" : {
 
     },
     "Benefits of screen capture:" : {
@@ -362,6 +365,9 @@
     "Enable AI to improve transcription quality by fixing grammar, formatting, and errors." : {
 
     },
+    "Enable dynamic sending strategy for faster transcription" : {
+
+    },
     "Enable Screen Capture" : {
 
     },
@@ -397,7 +403,16 @@
     "Enter context or keywords that help Whisper recognize your speech more accurately. For example: technical terms, names, or domain-specific vocabulary you frequently use." : {
 
     },
+    "Enter your Aliyun AccessKeyId" : {
+
+    },
+    "Enter your Aliyun AccessKeySecret" : {
+
+    },
     "Enter your Aliyun API key" : {
+
+    },
+    "Enter your Aliyun AppKey" : {
 
     },
     "Enter your OpenAI API key" : {
@@ -407,6 +422,12 @@
 
     },
     "Estimated cost: $%.3f/minute" : {
+
+    },
+    "File Mode Benefits" : {
+
+    },
+    "File Transcription Configuration" : {
 
     },
     "Free" : {
@@ -427,6 +448,9 @@
 
     },
     "Get your API key from platform.openai.com" : {
+
+    },
+    "Get your AppKey from Aliyun Model Studio application console" : {
 
     },
     "Grant Microphone Access" : {
@@ -632,6 +656,9 @@
         }
       }
     },
+    "Performance Optimization" : {
+
+    },
     "Permissions" : {
       "comment" : "Header for permission section in settings.",
       "localizations" : {
@@ -678,6 +705,9 @@
 
     },
     "Re-run transcription" : {
+
+    },
+    "Realtime Streaming Configuration" : {
 
     },
     "Recommended for custom hotkeys to avoid interfering with normal usage" : {
@@ -855,6 +885,12 @@
     "System Default" : {
 
     },
+    "Test API Key" : {
+
+    },
+    "Test AppKey" : {
+
+    },
     "Test Connection" : {
 
     },
@@ -888,6 +924,9 @@
 
     },
     "Transcription May Have Failed" : {
+
+    },
+    "Transcription Mode" : {
 
     },
     "Transcription Model" : {
@@ -968,6 +1007,9 @@
       }
     },
     "Voice Recognition Prompt" : {
+
+    },
+    "Wait until speaking is complete before showing the final result" : {
 
     },
     "What this enables:" : {

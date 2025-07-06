@@ -313,7 +313,12 @@ struct TranscriptionModelPicker: View {
                     case .openai:
                         store.hexSettings.openaiAPIKey.isEmpty
                     case .aliyun:
-                        store.hexSettings.aliyunAPIKey.isEmpty
+                        // Check different keys based on transcription mode
+                        if newValue.isFileBasedTranscription {
+                            store.hexSettings.aliyunAppKey.isEmpty
+                        } else {
+                            store.hexSettings.aliyunAPIKey.isEmpty
+                        }
                     case .whisperKit:
                         false
                     }
@@ -532,81 +537,219 @@ struct OpenAIAPIConfigurationView: View {
 struct AliyunAPIConfigurationView: View {
     @Bindable var store: StoreOf<SettingsFeature>
     @State private var showingAPIKey = false
+    @State private var showingAppKey = false
+    @State private var showingAccessKeyId = false
+    @State private var showingAccessKeySecret = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // API Key Input
-            HStack {
-                Label {
-                    HStack {
-                        if showingAPIKey {
-                            TextField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
-                                .textFieldStyle(.roundedBorder)
-                        } else {
-                            SecureField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        Button(action: { showingAPIKey.toggle() }) {
-                            Image(systemName: showingAPIKey ? "eye.slash" : "eye")
-                        }
-                        .buttonStyle(.borderless)
+            // Transcription Mode Picker
+            Picker("Transcription Mode", selection: $store.hexSettings.aliyunTranscriptionMode) {
+                ForEach(AliyunTranscriptionMode.allCases, id: \.self) { mode in
+                    VStack(alignment: .leading) {
+                        Text(mode.displayName)
+                        Text(mode.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                } icon: {
-                    Image(systemName: "key")
+                    .tag(mode)
                 }
             }
+            .pickerStyle(.menu)
+            
+            // Conditional configuration based on mode
+            if store.hexSettings.aliyunTranscriptionMode == .realtime {
+                // Realtime mode: API Key configuration
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Realtime Streaming Configuration")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    HStack {
+                        Label {
+                            HStack {
+                                if showingAPIKey {
+                                    TextField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
+                                        .textFieldStyle(.roundedBorder)
+                                } else {
+                                    SecureField("Enter your Aliyun API key", text: $store.hexSettings.aliyunAPIKey)
+                                        .textFieldStyle(.roundedBorder)
+                                }
 
-            // Test Connection Button
-            HStack {
-                Button("Test Connection") {
-                    store.send(.testAliyunAPIKey)
+                                Button(action: { showingAPIKey.toggle() }) {
+                                    Image(systemName: showingAPIKey ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        } icon: {
+                            Image(systemName: "key")
+                        }
+                    }
+
+                    // Test Connection Button
+                    HStack {
+                        Button("Test API Key") {
+                            store.send(.testAliyunAPIKey)
+                        }
+                        .disabled(store.hexSettings.aliyunAPIKey.isEmpty)
+
+                        Spacer()
+
+                        // Connection Status
+                        if store.hexSettings.aliyunAPIKeyIsValid {
+                            Label("Valid", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                        } else if !store.hexSettings.aliyunAPIKey.isEmpty {
+                            Label("Invalid", systemImage: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                    }
+                    
+                    // Batch Mode Toggle (only for realtime)
+                    Label {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle("Batch Transcription Mode", isOn: $store.hexSettings.aliyunBatchMode)
+                            Text("Wait until speaking is complete before showing the final result")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "clock.badge.checkmark")
+                    }
+                    
+                    // Performance Mode Toggle (only for realtime)
+                    Label {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle("Performance Optimization", isOn: $store.hexSettings.aliyunPerformanceMode)
+                            Text("Enable dynamic sending strategy for faster transcription")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "bolt.circle")
+                    }
                 }
-                .disabled(store.hexSettings.aliyunAPIKey.isEmpty)
+            } else {
+                // File mode: AppKey configuration
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("File Transcription Configuration")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    // AppKey field
+                    HStack {
+                        Label {
+                            HStack {
+                                if showingAppKey {
+                                    TextField("Enter your Aliyun AppKey", text: $store.hexSettings.aliyunAppKey)
+                                        .textFieldStyle(.roundedBorder)
+                                } else {
+                                    SecureField("Enter your Aliyun AppKey", text: $store.hexSettings.aliyunAppKey)
+                                        .textFieldStyle(.roundedBorder)
+                                }
 
-                Spacer()
+                                Button(action: { showingAppKey.toggle() }) {
+                                    Image(systemName: showingAppKey ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        } icon: {
+                            Image(systemName: "app.badge")
+                        }
+                    }
+                    
+                    // AccessKeyId field
+                    HStack {
+                        Label {
+                            HStack {
+                                if showingAccessKeyId {
+                                    TextField("Enter your Aliyun AccessKeyId", text: $store.hexSettings.aliyunAccessKeyId)
+                                        .textFieldStyle(.roundedBorder)
+                                } else {
+                                    SecureField("Enter your Aliyun AccessKeyId", text: $store.hexSettings.aliyunAccessKeyId)
+                                        .textFieldStyle(.roundedBorder)
+                                }
 
-                // Connection Status
-                if store.hexSettings.aliyunAPIKeyIsValid {
-                    Label("Valid", systemImage: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                                Button(action: { showingAccessKeyId.toggle() }) {
+                                    Image(systemName: showingAccessKeyId ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        } icon: {
+                            Image(systemName: "key")
+                        }
+                    }
+                    
+                    // AccessKeySecret field
+                    HStack {
+                        Label {
+                            HStack {
+                                if showingAccessKeySecret {
+                                    TextField("Enter your Aliyun AccessKeySecret", text: $store.hexSettings.aliyunAccessKeySecret)
+                                        .textFieldStyle(.roundedBorder)
+                                } else {
+                                    SecureField("Enter your Aliyun AccessKeySecret", text: $store.hexSettings.aliyunAccessKeySecret)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                Button(action: { showingAccessKeySecret.toggle() }) {
+                                    Image(systemName: showingAccessKeySecret ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        } icon: {
+                            Image(systemName: "key.fill")
+                        }
+                    }
+
+                    // Test Connection Button
+                    HStack {
+                        Button("Test AppKey") {
+                            store.send(.testAliyunAppKey)
+                        }
+                        .disabled(store.hexSettings.aliyunAppKey.isEmpty || store.hexSettings.aliyunAccessKeyId.isEmpty || store.hexSettings.aliyunAccessKeySecret.isEmpty)
+
+                        Spacer()
+
+                        // Connection Status
+                        if store.hexSettings.aliyunAppKeyIsValid {
+                            Label("Valid", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                        } else if !store.hexSettings.aliyunAppKey.isEmpty {
+                            Label("Invalid", systemImage: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                    }
+                    
+                    // File mode advantages
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("File Mode Benefits", systemImage: "checkmark.seal")
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("• Support for files up to 100MB")
+                            Text("• Faster processing: 30min audio in 10sec")
+                            Text("• More stable network connection")
+                            Text("• Better suited for longer recordings")
+                        }
                         .font(.caption)
-                } else if !store.hexSettings.aliyunAPIKey.isEmpty {
-                    Label("Invalid", systemImage: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
                 }
             }
 
             // Help Text
-            Text("Get your API key from Aliyun Model Studio console")
+            Text(store.hexSettings.aliyunTranscriptionMode == .realtime ? 
+                 "Get your API key from Aliyun Model Studio console" :
+                 "Get your AppKey from Aliyun Model Studio application console")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Batch Mode Toggle
-            Label {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Batch Transcription Mode", isOn: $store.hexSettings.aliyunBatchMode)
-                    Text("Wait until speaking is complete before showing the final result, reducing intermediate logs and resource consumption")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } icon: {
-                Image(systemName: "clock.badge.checkmark")
-            }
-            
-            // Performance Mode Toggle
-            Label {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Performance Optimization", isOn: $store.hexSettings.aliyunPerformanceMode)
-                    Text("Enable dynamic sending strategy and optimized timing for faster transcription. May reduce accuracy slightly for very long audio.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } icon: {
-                Image(systemName: "bolt.circle")
-            }
         }
         .padding(.vertical, 4)
     }

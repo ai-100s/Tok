@@ -64,6 +64,16 @@ struct HexSettings: Codable, Equatable {
     var aliyunAPIKeyIsValid: Bool = false
     var aliyunBatchMode: Bool = true // 批量转录模式：等说完后统一展示结果，减少资源消耗
     var aliyunPerformanceMode: Bool = true // 性能优化模式：动态调整发送策略提高转录速度
+    
+    // Aliyun File Transcription configuration (using AppKey + AccessKeyId + AccessKeySecret + Token)
+    var aliyunAppKey: String = ""
+    var aliyunAccessKeyId: String = ""
+    var aliyunAccessKeySecret: String = ""
+    var aliyunAppKeyLastTested: Date? = nil
+    var aliyunAppKeyIsValid: Bool = false
+    var aliyunCachedToken: String = ""
+    var aliyunTokenExpiration: Date? = nil
+    var aliyunTranscriptionMode: AliyunTranscriptionMode = .realtime // 转录模式：实时流式 vs 文件转录
 
 	// Define coding keys to match struct properties
 	enum CodingKeys: String, CodingKey {
@@ -106,6 +116,14 @@ struct HexSettings: Codable, Equatable {
         case aliyunAPIKeyIsValid
         case aliyunBatchMode
         case aliyunPerformanceMode
+        case aliyunAppKey
+        case aliyunAccessKeyId
+        case aliyunAccessKeySecret
+        case aliyunAppKeyLastTested
+        case aliyunAppKeyIsValid
+        case aliyunCachedToken
+        case aliyunTokenExpiration
+        case aliyunTranscriptionMode
 	}
 
 	init(
@@ -147,7 +165,15 @@ struct HexSettings: Codable, Equatable {
         aliyunAPIKeyLastTested: Date? = nil,
         aliyunAPIKeyIsValid: Bool = false,
         aliyunBatchMode: Bool = true,
-        aliyunPerformanceMode: Bool = true
+        aliyunPerformanceMode: Bool = true,
+        aliyunAppKey: String = "",
+        aliyunAccessKeyId: String = "",
+        aliyunAccessKeySecret: String = "",
+        aliyunAppKeyLastTested: Date? = nil,
+        aliyunAppKeyIsValid: Bool = false,
+        aliyunCachedToken: String = "",
+        aliyunTokenExpiration: Date? = nil,
+        aliyunTranscriptionMode: AliyunTranscriptionMode = .realtime
 	) {
 		self.soundEffectsEnabled = soundEffectsEnabled
 		self.hotkey = hotkey
@@ -188,6 +214,14 @@ struct HexSettings: Codable, Equatable {
         self.aliyunAPIKeyIsValid = aliyunAPIKeyIsValid
         self.aliyunBatchMode = aliyunBatchMode
         self.aliyunPerformanceMode = aliyunPerformanceMode
+        self.aliyunAppKey = aliyunAppKey
+        self.aliyunAccessKeyId = aliyunAccessKeyId
+        self.aliyunAccessKeySecret = aliyunAccessKeySecret
+        self.aliyunAppKeyLastTested = aliyunAppKeyLastTested
+        self.aliyunAppKeyIsValid = aliyunAppKeyIsValid
+        self.aliyunCachedToken = aliyunCachedToken
+        self.aliyunTokenExpiration = aliyunTokenExpiration
+        self.aliyunTranscriptionMode = aliyunTranscriptionMode
 	}
 
 	// Custom decoder that handles missing fields
@@ -254,6 +288,14 @@ struct HexSettings: Codable, Equatable {
         aliyunAPIKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .aliyunAPIKeyIsValid) ?? false
         aliyunBatchMode = try container.decodeIfPresent(Bool.self, forKey: .aliyunBatchMode) ?? true
         aliyunPerformanceMode = try container.decodeIfPresent(Bool.self, forKey: .aliyunPerformanceMode) ?? true
+        aliyunAppKey = try container.decodeIfPresent(String.self, forKey: .aliyunAppKey) ?? ""
+        aliyunAccessKeyId = try container.decodeIfPresent(String.self, forKey: .aliyunAccessKeyId) ?? ""
+        aliyunAccessKeySecret = try container.decodeIfPresent(String.self, forKey: .aliyunAccessKeySecret) ?? ""
+        aliyunAppKeyLastTested = try container.decodeIfPresent(Date.self, forKey: .aliyunAppKeyLastTested)
+        aliyunAppKeyIsValid = try container.decodeIfPresent(Bool.self, forKey: .aliyunAppKeyIsValid) ?? false
+        aliyunCachedToken = try container.decodeIfPresent(String.self, forKey: .aliyunCachedToken) ?? ""
+        aliyunTokenExpiration = try container.decodeIfPresent(Date.self, forKey: .aliyunTokenExpiration)
+        aliyunTranscriptionMode = try container.decodeIfPresent(AliyunTranscriptionMode.self, forKey: .aliyunTranscriptionMode) ?? .realtime
 	}
 }
 
@@ -291,6 +333,30 @@ enum AIProviderType: String, Codable, CaseIterable, Equatable {
             return "Run AI models locally using Ollama"
         case .groq:
             return "Use Groq's fast inference API"
+        }
+    }
+}
+
+/// Aliyun transcription mode types
+enum AliyunTranscriptionMode: String, Codable, CaseIterable, Equatable {
+    case realtime = "realtime"
+    case file = "file"
+    
+    var displayName: String {
+        switch self {
+        case .realtime:
+            return "实时流式转录"
+        case .file:
+            return "文件极速转录"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .realtime:
+            return "实时流式转录，适合语音输入和对话场景"
+        case .file:
+            return "文件极速转录，支持更大文件和更快处理速度"
         }
     }
 }
