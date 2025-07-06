@@ -126,6 +126,19 @@ actor TranscriptionClientLive {
   /// Flag to track if streaming transcription is currently active
   private var isStreamingActive: Bool = false
 
+  /// Last logged stream text to avoid duplicate logs
+  private var _lastLoggedStreamText: String = ""
+
+  /// Safely get the last logged stream text
+  private var lastLoggedStreamText: String {
+    get async { _lastLoggedStreamText }
+  }
+
+  /// Safely set the last logged stream text
+  private func setLastLoggedStreamText(_ text: String) async {
+    _lastLoggedStreamText = text
+  }
+
   /// The base folder under which we store model data (e.g., ~/Library/Application Support/...).
   private lazy var modelsBaseFolder: URL = {
     do {
@@ -732,11 +745,6 @@ actor TranscriptionClientLive {
         return
       }
       
-      print("[TranscriptionClientLive] Stream callback triggered - Raw text: '\(newState.currentText)'")
-      print("[TranscriptionClientLive] Confirmed segments count: \(newState.confirmedSegments.count)")
-      print("[TranscriptionClientLive] Unconfirmed segments count: \(newState.unconfirmedSegments.count)")
-      print("[TranscriptionClientLive] Cleaned text: '\(cleanedText)'")
-      
       // Convert WhisperKit segments to our custom format, also cleaning their text
       let confirmedSegments = newState.confirmedSegments.map { segment in
         TranscriptionSegment(
@@ -745,7 +753,7 @@ actor TranscriptionClientLive {
           end: TimeInterval(segment.end)
         )
       }
-      
+
       let unconfirmedSegments = newState.unconfirmedSegments.map { segment in
         TranscriptionSegment(
             text: self.cleanWhisperTokens(from: segment.text),
@@ -753,16 +761,26 @@ actor TranscriptionClientLive {
           end: TimeInterval(segment.end)
         )
       }
-      
+
       let update = StreamTranscriptionUpdate(
         confirmedSegments: confirmedSegments,
         unconfirmedSegments: unconfirmedSegments,
         currentText: cleanedText,
         isComplete: false
       )
-      
-      print("[TranscriptionClientLive] Sending update with cleaned text: '\(update.currentText)'")
-      
+
+      // Only log meaningful updates to reduce noise
+      #if DEBUG
+      Task { [weak self] in
+        guard let self = self else { return }
+        let lastText = await self.lastLoggedStreamText
+        if cleanedText != lastText {
+          print("[TranscriptionClientLive] Stream update: '\(cleanedText.prefix(50))\(cleanedText.count > 50 ? "..." : "")'")
+          await self.setLastLoggedStreamText(cleanedText)
+        }
+      }
+      #endif
+
       updateCallback(update)
 
     }

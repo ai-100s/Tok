@@ -83,8 +83,9 @@ actor AliyunTokenManager {
         )
         
         // 构建表单数据
+        // 注意：signedParameters中的值已经在签名生成过程中进行了URL编码，这里不需要再次编码
         let formData = signedParameters.map { key, value in
-            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value)"
+            "\(key)=\(value)"
         }.joined(separator: "&")
         
         var request = URLRequest(url: url)
@@ -150,8 +151,9 @@ actor AliyunTokenManager {
         )
         
         // 构建表单数据
+        // 注意：signedParameters中的值已经在签名生成过程中进行了URL编码，这里不需要再次编码
         let formData = signedParameters.map { key, value in
-            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value)"
+            "\(key)=\(value)"
         }.joined(separator: "&")
         
         var request = URLRequest(url: url)

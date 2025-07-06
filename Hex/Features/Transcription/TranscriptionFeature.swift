@@ -112,13 +112,12 @@ struct StreamingTranscription: Equatable {
   }
   
   mutating func updateFromStream(_ update: StreamTranscriptionUpdate) {
-    print("[StreamingTranscription] updateFromStream called")
-    print("[StreamingTranscription] Before update - currentText: '\(currentText)'")
-    print("[StreamingTranscription] Update currentText: '\(update.currentText)'")
-    
+    let previousText = currentText
+    let previousActive = isActive
+
     confirmedSegments = update.confirmedSegments
     unconfirmedSegments = update.unconfirmedSegments
-    
+
     // Buffer rule: only accept the new currentText if it is
     // 1) non-empty AND
     // 2) at least as long as the current text.
@@ -126,18 +125,22 @@ struct StreamingTranscription: Equatable {
     // emits shorter (or empty) partial hypotheses before extending them again.
     if !update.currentText.isEmpty && update.currentText.count >= currentText.count {
       currentText = update.currentText
-      print("[StreamingTranscription] Updated currentText to: '\(currentText)'")
-    } else {
-      print("[StreamingTranscription] Skipping currentText update (buffer rule)")
     }
-    
+
     if !isActive && !currentText.isEmpty {
       isActive = true
       startTime = Date()
-      print("[StreamingTranscription] Activated streaming transcription")
     }
-    
-    print("[StreamingTranscription] After update - currentText: '\(currentText)', isActive: \(isActive)")
+
+    // Only log when there are meaningful changes
+    #if DEBUG
+    let textChanged = previousText != currentText
+    let activeChanged = previousActive != isActive
+
+    if textChanged || activeChanged {
+      print("[StreamingTranscription] Update - text: '\(currentText.prefix(50))\(currentText.count > 50 ? "..." : "")', active: \(isActive)")
+    }
+    #endif
   }
 }
 
@@ -1361,6 +1364,7 @@ private extension TranscriptionFeature {
 
 struct TranscriptionView: View {
   @Bindable var store: StoreOf<TranscriptionFeature>
+  @State private var lastLoggedStatus: TranscriptionIndicatorView.Status = .hidden
 
   var status: TranscriptionIndicatorView.Status {
     let computedStatus: TranscriptionIndicatorView.Status
@@ -1380,12 +1384,17 @@ struct TranscriptionView: View {
       computedStatus = .hidden
     }
     
-    // Debug logging to understand status and data flow
-    print("[TranscriptionView] Status: \(computedStatus)")
-    print("[TranscriptionView] isRecording: \(store.isRecording), isStreamingTranscription: \(store.isStreamingTranscription)")
-    print("[TranscriptionView] streamingTranscription.currentText: '\(store.streamingTranscription.currentText)'")
-    print("[TranscriptionView] streamingTranscription.isActive: \(store.streamingTranscription.isActive)")
-    
+    // Only log status changes to reduce noise
+    #if DEBUG
+    if computedStatus != self.lastLoggedStatus {
+      print("[TranscriptionView] Status changed to: \(computedStatus)")
+      if computedStatus == .streamingTranscription {
+        print("[TranscriptionView] Streaming text: '\(store.streamingTranscription.currentText.prefix(30))\(store.streamingTranscription.currentText.count > 30 ? "..." : "")'")
+      }
+      self.lastLoggedStatus = computedStatus
+    }
+    #endif
+
     return computedStatus
   }
 

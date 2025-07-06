@@ -49,11 +49,17 @@ struct AliyunSignatureGenerator {
             accessKeySecret: accessKeySecret,
             httpMethod: "POST"
         )
-        
+
         // 添加签名到参数中
         parameters["Signature"] = signature
-        
-        return parameters
+
+        // 对所有参数进行URL编码，以便直接用于HTTP请求
+        var encodedParameters: [String: String] = [:]
+        for (key, value) in parameters {
+            encodedParameters[percentEncode(key)] = percentEncode(value)
+        }
+
+        return encodedParameters
     }
     
     /// 生成 HMAC-SHA1 签名
@@ -67,25 +73,25 @@ struct AliyunSignatureGenerator {
         accessKeySecret: String,
         httpMethod: String
     ) -> String {
-        
+
         // 1. 参数排序和编码
         let canonicalQueryString = canonicalizeParameters(parameters)
-        
+
         // 2. 构建签名字符串
         let stringToSign = constructStringToSign(
             httpMethod: httpMethod,
             canonicalQueryString: canonicalQueryString
         )
-        
+
         // 3. 计算 HMAC-SHA1 签名
         let signature = calculateHMACSHA1(
             stringToSign: stringToSign,
             key: accessKeySecret + "&"
         )
-        
+
         // 4. Base64 编码
         let base64Signature = Data(signature).base64EncodedString()
-        
+
         return base64Signature
     }
     
@@ -152,7 +158,8 @@ struct AliyunSignatureGenerator {
     /// - Returns: ISO8601 格式的时间戳
     private static func generateTimestamp() -> String {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0) // 确保使用UTC时区
         return formatter.string(from: Date())
     }
     
@@ -200,5 +207,39 @@ extension AliyunSignatureGenerator {
             timestamp: "2019-03-25T09:07:52Z",
             nonce: "8d1e6a7a-f44e-40d5-aedb-fe4a1c80f434"
         )
+    }
+
+    /// 使用官方文档提供的测试用例验证签名生成
+    /// - Returns: 是否通过验证
+    static func validateWithOfficialTestCase() -> Bool {
+        // 官方文档测试用例
+        let accessKeyId = "my_access_key_id"
+        let accessKeySecret = "my_access_key_secret"
+        let timestamp = "2019-04-18T08:32:31Z"
+        let nonce = "b924c8c3-6d03-4c5d-ad36-d984d3116788"
+        let expectedSignature = "hHq4yNsPitlfDJ2L0nQPdugdEzM="
+
+        // 生成签名参数
+        let parameters = generateSignedParameters(
+            accessKeyId: accessKeyId,
+            accessKeySecret: accessKeySecret,
+            timestamp: timestamp,
+            nonce: nonce
+        )
+
+        let actualSignature = parameters["Signature"] ?? ""
+
+        print("Expected signature: \(expectedSignature)")
+        print("Actual signature: \(actualSignature)")
+        print("Match: \(actualSignature == expectedSignature)")
+
+        // 打印调试信息
+        let sortedParams = parameters.sorted { $0.key < $1.key }
+        print("Generated parameters:")
+        for (key, value) in sortedParams {
+            print("  \(key): \(value)")
+        }
+
+        return actualSignature == expectedSignature
     }
 }
