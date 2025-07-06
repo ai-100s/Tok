@@ -424,6 +424,9 @@
     "Estimated cost: $%.3f/minute" : {
 
     },
+    "Estimated cost: $%@/minute" : {
+
+    },
     "File Mode Benefits" : {
 
     },

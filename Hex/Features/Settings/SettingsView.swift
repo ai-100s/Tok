@@ -115,16 +115,13 @@ struct SettingsView: View {
 				Section("Model Selection") {
 					TranscriptionModelPicker(store: store)
 				}
-				
+
 			case .aliyun:
-				// Aliyun remote provider: API configuration and model selection
+				// Aliyun remote provider: API configuration (includes model selection via transcription mode)
 				Section("Aliyun Configuration") {
 					AliyunAPIConfigurationView(store: store)
 				}
-
-				Section("Model Selection") {
-					TranscriptionModelPicker(store: store)
-				}
+				// Note: Model selection is handled within AliyunAPIConfigurationView via transcription mode
 				
 			case .whisperKit:
 				// Local provider: show model download section and model selection
@@ -556,7 +553,57 @@ struct AliyunAPIConfigurationView: View {
                 }
             }
             .pickerStyle(.menu)
-            
+            .onChange(of: store.hexSettings.aliyunTranscriptionMode) { oldValue, newValue in
+                // When transcription mode changes, update the corresponding model
+                let correspondingModel: TranscriptionModelType = switch newValue {
+                case .realtime:
+                    .aliyunParaformerRealtimeV2
+                case .file:
+                    .aliyunParaformerFileV1
+                }
+
+                // Update both the new and legacy model fields
+                store.send(.binding(.set(\.hexSettings.selectedTranscriptionModel, correspondingModel)))
+                store.send(.binding(.set(\.hexSettings.selectedModel, correspondingModel.rawValue)))
+            }
+
+            // Show current model information
+            let currentModel: TranscriptionModelType = switch store.hexSettings.aliyunTranscriptionMode {
+            case .realtime:
+                .aliyunParaformerRealtimeV2
+            case .file:
+                .aliyunParaformerFileV1
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: currentModel.iconName)
+                        .foregroundColor(currentModel.iconColor)
+                    Text("Model")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(currentModel.displayName)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(currentModel.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Text("Estimated cost: $\(String(format: "%.3f", currentModel.estimatedCostPerMinute))/minute")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+
             // Conditional configuration based on mode
             if store.hexSettings.aliyunTranscriptionMode == .realtime {
                 // Realtime mode: API Key configuration
